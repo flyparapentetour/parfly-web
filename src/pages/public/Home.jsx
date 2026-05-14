@@ -1,21 +1,32 @@
-import './Home.css'
+import Navbar from '../../components/Navbar'
+import Hero from '../../components/Hero'
+import Services from '../../components/Services'
+import Classes from '../../components/Classes'
+import Locations from '../../components/Locations'
+import HowItWorks from '../../components/HowItWorks'
+import Gallery from '../../components/Gallery'
+import Testimonials from '../../components/Testimonials'
+import CTAFinal from '../../components/CTAFinal'
+import Footer from '../../components/Footer'
+import WhatsAppFloat from '../../components/WhatsAppFloat'
 
 function Home() {
   return (
-    <main className="home">
-      <section className="hero">
-        <div className="hero__content">
-          <p className="hero__eyebrow">San Gil · Santander</p>
-          <h1 className="hero__title">Fly Parapente Tour</h1>
-          <p className="hero__subtitle">
-            Vuela el cañón del Chicamocha y vive una experiencia inolvidable.
-          </p>
-          <button type="button" className="hero__cta">
-            Reservar mi vuelo
-          </button>
-        </div>
-      </section>
-    </main>
+    <>
+      <Navbar />
+      <main>
+        <Hero />
+        <Services />
+        <Classes />
+        <Locations />
+        <HowItWorks />
+        <Gallery />
+        <Testimonials />
+        <CTAFinal />
+      </main>
+      <Footer />
+      <WhatsAppFloat />
+    </>
   )
 }
 

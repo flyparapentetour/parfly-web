@@ -1,0 +1,89 @@
+.how {
+  background: var(--color-light);
+  padding: 96px 0;
+}
+
+.how__head {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto 56px;
+}
+
+.how__title {
+  margin-bottom: 16px;
+}
+
+.how__lead {
+  color: var(--color-text-soft);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.how__steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  counter-reset: step;
+}
+
+.step {
+  position: relative;
+  text-align: center;
+  padding: 32px 24px 28px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+}
+
+.step__num {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-family: var(--font-heading);
+  font-size: 56px;
+  letter-spacing: 2px;
+  color: var(--color-accent);
+  opacity: 0.18;
+  line-height: 1;
+}
+
+.step__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  color: var(--color-accent);
+}
+
+.step__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.step__title {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  margin-bottom: 10px;
+}
+
+.step__desc {
+  color: var(--color-text-soft);
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .how__steps {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .how {
+    padding: 120px 0;
+  }
+}

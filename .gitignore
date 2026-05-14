@@ -17,6 +17,10 @@ dist-ssr
 firebase-debug.log
 .runtimeconfig.json
 
+# Local archives / backups
+*.zip
+*.tar.gz
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,128 @@
+.footer {
+  background: var(--color-bg);
+  color: var(--color-light);
+  padding: 64px 0 24px;
+}
+
+.footer__inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+}
+
+.footer__logo {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.footer__tagline {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin-bottom: 20px;
+}
+
+.footer__socials {
+  display: flex;
+  gap: 10px;
+}
+
+.footer__social {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--color-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-light);
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.footer__social svg {
+  width: 18px;
+  height: 18px;
+}
+
+.footer__social:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.footer__cols {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 28px;
+}
+
+.footer__col-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-light);
+  margin-bottom: 14px;
+}
+
+.footer__col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.footer__col a {
+  transition: color 0.2s ease;
+}
+
+.footer__col a:hover {
+  color: var(--color-accent);
+}
+
+.footer__bottom {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-faint);
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.footer__legal {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  color: var(--color-muted);
+}
+
+.footer__legal a {
+  transition: color 0.2s ease;
+}
+
+.footer__legal a:hover {
+  color: var(--color-accent);
+}
+
+@media (min-width: 768px) {
+  .footer__inner {
+    grid-template-columns: 1.2fr 2fr;
+    gap: 64px;
+  }
+  .footer__cols {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer {
+    padding: 80px 0 32px;
+  }
+}

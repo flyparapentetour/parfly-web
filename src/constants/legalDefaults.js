@@ -1,0 +1,5 @@
+export const LEGAL_DEFAULTS = {
+  terms: 'Fly Parapente Tour opera bajo la normativa de aviación deportiva de Colombia (Aeronáutica Civil). Al realizar una reserva aceptas: (1) Los vuelos están sujetos a condiciones climáticas adecuadas. (2) El cliente debe presentarse 30 minutos antes del vuelo. (3) Peso máximo permitido: 100kg. (4) Menores de 18 años requieren autorización de padres. (5) Fly Parapente Tour se reserva el derecho de cancelar vuelos por condiciones de seguridad.',
+  privacy: 'Fly Parapente Tour recopila nombre, email y teléfono únicamente para gestionar reservas. No compartimos datos con terceros. Los datos se almacenan de forma segura y pueden ser eliminados a solicitud del usuario escribiendo a info@flyparapente.tours.',
+  cancellations: 'Cancelación con más de 48 horas: reembolso del 100%. Cancelación entre 24-48 horas: reembolso del 50%. Cancelación con menos de 24 horas: sin reembolso. Si el vuelo es cancelado por Fly Parapente Tour por condiciones climáticas o de seguridad: reembolso 100% o reprogramación sin costo. Pagos parciales (50%): el saldo restante se cobra el día del vuelo.',
+}

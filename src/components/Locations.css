@@ -1,0 +1,117 @@
+.locations {
+  background: var(--color-surface-2);
+  padding: 96px 0 96px;
+}
+
+.locations__head {
+  text-align: center;
+  margin-bottom: 48px;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.locations__lead {
+  margin-top: 14px;
+  color: var(--color-text-soft);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.locations__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.location-card {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  color: var(--color-light);
+  box-shadow: var(--shadow-md);
+  isolation: isolate;
+}
+
+.location-card__image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.6s ease;
+  z-index: -2;
+}
+
+.location-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 22, 40, 0.0) 0%, rgba(10, 22, 40, 0.85) 100%);
+  z-index: -1;
+}
+
+.location-card:hover .location-card__image {
+  transform: scale(1.08);
+}
+
+.location-card__body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px 22px;
+}
+
+.location-card__region {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: 6px;
+}
+
+.location-card__name {
+  font-family: var(--font-heading);
+  font-size: 36px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.location-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-light);
+  transition: gap 0.25s ease, color 0.2s ease;
+}
+
+.location-card:hover .location-card__cta {
+  color: var(--color-accent);
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .locations__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .locations {
+    padding: 120px 0;
+  }
+  .locations__grid {
+    gap: 24px;
+  }
+  .location-card {
+    aspect-ratio: 4 / 5;
+  }
+}

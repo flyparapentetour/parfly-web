@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Public catalog content — read by visitors, write only by admins.
+    match /services/{id}           { allow read; allow write: if isSignedIn(); }
+    match /additionals/{id}        { allow read; allow write: if isSignedIn(); }
+    match /testimonials/{id}       { allow read; allow write: if isSignedIn(); }
+    match /gallery/{id}            { allow read; allow write: if isSignedIn(); }
+
+    // Settings: generic is public (whatsapp, socials); Bold MUST be admin-only
+    // because it stores the secretKey.
+    match /settings/general        { allow read; allow write: if isSignedIn(); }
+    match /settings/legal          { allow read; allow write: if isSignedIn(); }
+    match /settings/bold           { allow read, write: if isSignedIn(); }
+
+    // Availability tree: public read, admin write.
+    match /availability/{sede}/slots/{date} {
+      allow read;
+      allow write: if isSignedIn();
+    }
+
+    // Blocked dates: public read (booking flow checks), admin write.
+    match /blocked/{sede}/dates/{date} {
+      allow read;
+      allow write: if isSignedIn();
+    }
+
+    // Bookings: visitors can create their own; only admins read/update.
+    match /bookings/{id} {
+      allow create;
+      allow read, update, delete: if isSignedIn();
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

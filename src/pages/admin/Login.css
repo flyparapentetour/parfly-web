@@ -1,0 +1,150 @@
+.login {
+  min-height: 100svh;
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: var(--font-body);
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 107, 43, 0.15), transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(79, 177, 255, 0.1), transparent 50%);
+}
+
+.login__card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px;
+  max-width: 420px;
+  width: 100%;
+  color: var(--color-light);
+  box-shadow: var(--shadow-lg);
+}
+
+.login__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-heading);
+  font-size: 18px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-light);
+  margin-bottom: 32px;
+}
+
+.login__mark {
+  color: var(--color-accent);
+}
+
+.login__title {
+  font-family: var(--font-heading);
+  font-size: 40px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-light);
+  margin-bottom: 8px;
+}
+
+.login__sub {
+  color: var(--color-muted);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login__field span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.login__field input {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-light);
+  font: inherit;
+}
+
+.login__field input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.login__field input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.login__pw {
+  position: relative;
+}
+
+.login__pw input {
+  width: 100%;
+  padding-right: 46px;
+}
+
+.login__pw-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  font-size: 18px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+}
+
+.login__error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fda4af;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.login__submit {
+  margin-top: 8px;
+  padding: 14px;
+  font-size: 15px;
+}
+
+.login__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login__back {
+  display: block;
+  margin-top: 24px;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 13px;
+  transition: color 0.2s ease;
+}
+
+.login__back:hover {
+  color: var(--color-accent);
+}
