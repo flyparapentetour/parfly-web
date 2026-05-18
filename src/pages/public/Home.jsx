@@ -2,7 +2,8 @@ import Navbar from '../../components/Navbar'
 import Hero from '../../components/Hero'
 import HeroStats from '../../components/HeroStats'
 import Services from '../../components/Services'
-import Pricing from '../../components/Pricing'
+import IncludedExperience from '../../components/IncludedExperience'
+import AdditionalsTeaser from '../../components/AdditionalsTeaser'
 import Classes from '../../components/Classes'
 import Locations from '../../components/Locations'
 import HowItWorks from '../../components/HowItWorks'
@@ -22,11 +23,12 @@ function Home() {
         <Hero />
         <HeroStats />
         <Services />
-        <Pricing />
-        <Classes />
-        <Locations />
+        <IncludedExperience />
+        <AdditionalsTeaser />
         <HowItWorks />
         <Security />
+        <Classes />
+        <Locations />
         <Gallery />
         <Testimonials />
         <FAQ />

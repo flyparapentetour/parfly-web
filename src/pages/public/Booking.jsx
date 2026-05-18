@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
@@ -227,9 +227,13 @@ function TimePicker({ sedeId, date, schedule, value, onChange }) {
 
 function Booking() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState(0)
   const [selectedService, setSelectedService] = useState(null)
-  const [sedeId, setSedeId] = useState('')
+  const initialSede = searchParams.get('sede') && SEDE_BY_ID[searchParams.get('sede')]
+    ? searchParams.get('sede')
+    : ''
+  const [sedeId, setSedeId] = useState(initialSede)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [pickedAdd, setPickedAdd] = useState({})

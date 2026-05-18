@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
-import { orderBy } from 'firebase/firestore'
+import { orderBy, where } from 'firebase/firestore'
 import Papa from 'papaparse'
 import { useCollection } from '../../hooks/useCollection'
 import {
@@ -82,6 +82,8 @@ function NotesField({ booking }) {
 
 function Reservas() {
   const { data: bookings, loading } = useCollection('bookings', [orderBy('createdAt', 'desc')])
+  const { data: services } = useCollection('services', [where('active', '==', true)])
+  const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const [sedeFilter, setSedeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [from, setFrom] = useState('')
@@ -321,7 +323,11 @@ function Reservas() {
       </div>
 
       {showManual && (
-        <ManualBookingModal onClose={() => setShowManual(false)} />
+        <ManualBookingModal
+          services={services}
+          additionals={additionals}
+          onClose={() => setShowManual(false)}
+        />
       )}
 
       {historyKey && (

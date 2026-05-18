@@ -80,6 +80,14 @@
   margin-bottom: 10px;
 }
 
+.location-card__intro {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-muted);
+  margin-bottom: 12px;
+  max-width: 90%;
+}
+
 .location-card__cta {
   display: inline-flex;
   align-items: center;

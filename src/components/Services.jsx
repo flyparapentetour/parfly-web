@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { where } from 'firebase/firestore'
 import { useCollection } from '../hooks/useCollection'
+import { useDoc } from '../hooks/useDoc'
+import { mergeHomeIntros } from '../constants/siteContent'
 import { formatCOP } from '../constants/sedes'
 import './Services.css'
 
@@ -14,17 +16,16 @@ const FALLBACK_ICON = (
 
 function Services() {
   const { data: services, loading } = useCollection('services', [where('active', '==', true)])
+  const { data: intros } = useDoc('settings/homeIntros')
+  const i = mergeHomeIntros(intros)
 
   return (
     <section id="servicios" className="services">
       <div className="container">
         <header className="services__head">
-          <p className="section-eyebrow">Lo que ofrecemos</p>
-          <h2 className="section-title services__title">Experiencias en el aire</h2>
-          <p className="services__lead">
-            Tres formas de vivir el parapente, diseñadas para cada nivel y cada
-            momento.
-          </p>
+          <p className="section-eyebrow">{i.servicesEyebrow}</p>
+          <h2 className="section-title services__title">{i.servicesTitle}</h2>
+          <p className="services__lead">{i.servicesLead}</p>
         </header>
 
         {loading ? (

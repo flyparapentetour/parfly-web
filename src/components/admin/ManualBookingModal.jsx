@@ -1,6 +1,4 @@
 import { useMemo, useState } from 'react'
-import { where } from 'firebase/firestore'
-import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
 import { createBooking } from '../../services/bookings'
 import { ALL_SLOT_TIMES, SEDES, SEDE_BY_ID, formatCOP } from '../../constants/sedes'
@@ -19,9 +17,7 @@ const INITIAL_STATUSES = [
   { id: 'completed', label: 'Completada' },
 ]
 
-function ManualBookingModal({ onClose, onCreated }) {
-  const { data: services } = useCollection('services', [where('active', '==', true)])
-  const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
+function ManualBookingModal({ services = [], additionals = [], onClose, onCreated }) {
   const { data: schedule } = useDoc('settings/schedule')
 
   const [serviceId, setServiceId] = useState('')

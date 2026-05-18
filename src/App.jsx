@@ -4,6 +4,9 @@ import ProtectedRoute from './components/admin/ProtectedRoute'
 
 import Home from './pages/public/Home'
 import Booking from './pages/public/Booking'
+import Additionals from './pages/public/Additionals'
+import ClassesPage from './pages/public/ClassesPage'
+import SedePage from './pages/public/SedePage'
 import Legal from './pages/public/Legal'
 import Login from './pages/admin/Login'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -24,6 +27,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/reservar" element={<Booking />} />
+          <Route path="/adicionales" element={<Additionals />} />
+          <Route path="/clases" element={<ClassesPage />} />
+          <Route path="/sede/:ciudad" element={<SedePage />} />
           <Route path="/terminos" element={<Legal which="terms" />} />
           <Route path="/privacidad" element={<Legal which="privacy" />} />
           <Route path="/cancelaciones" element={<Legal which="cancellations" />} />
