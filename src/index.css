@@ -1,5 +1,11 @@
+/* =============================================================
+   Fly Parapente Tour · index.css (refresh)
+   Tokens refinados — paleta extendida, sombras escala 5, radios y
+   transiciones consistentes. Mantiene compatibilidad con el resto
+   del proyecto (mismos nombres de variables originales + extras).
+   ============================================================= */
 :root {
-  /* Paleta */
+  /* Marca (compat con tu sistema actual) */
   --color-bg: #0a1628;
   --color-bg-2: #0f1e36;
   --color-accent: #ff6b2b;
@@ -7,30 +13,63 @@
   --color-light: #ffffff;
   --color-muted: rgba(255, 255, 255, 0.72);
   --color-faint: rgba(255, 255, 255, 0.14);
-  --color-text: #1a1a1a;
+  --color-text: #0b1220;
   --color-text-soft: #4b5563;
   --color-surface: #ffffff;
-  --color-surface-2: #f5f7fb;
+  --color-surface-2: #f7f8fb;
   --color-whatsapp: #25d366;
+
+  /* Escala extendida (úsala libremente en lugar de los anteriores) */
+  --navy-900: #060f1d;
+  --navy-800: #0a1628;
+  --navy-700: #0f1e36;
+  --navy-600: #142646;
+  --navy-500: #1c3460;
+  --orange-600: #e85a1f;
+  --orange-500: #ff6b2b;
+  --orange-400: #ff8a4d;
+  --orange-300: #ffb380;
+  --ink-700: #1f2937;
+  --ink-500: #4b5563;
+  --ink-400: #6b7280;
+  --ink-300: #9ca3af;
+  --ink-200: #d1d5db;
+  --ink-100: #e5e7eb;
+  --ink-50:  #f3f4f6;
+  --surface-3: #eef1f7;
 
   /* Tipografía */
   --font-heading: 'Bebas Neue', 'Segoe UI', system-ui, sans-serif;
   --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
 
-  /* Sombras */
-  --shadow-sm: 0 4px 12px rgba(10, 22, 40, 0.08);
-  --shadow-md: 0 10px 30px rgba(10, 22, 40, 0.15);
-  --shadow-lg: 0 20px 60px rgba(10, 22, 40, 0.25);
-  --shadow-accent: 0 10px 30px rgba(255, 107, 43, 0.35);
+  /* Sombras (sistema en 5 pasos + glow) */
+  --shadow-1: 0 1px 2px rgba(10,22,40,.06), 0 1px 3px rgba(10,22,40,.04);
+  --shadow-2: 0 4px 12px rgba(10,22,40,.08), 0 2px 4px rgba(10,22,40,.04);
+  --shadow-3: 0 12px 28px rgba(10,22,40,.10), 0 4px 8px rgba(10,22,40,.06);
+  --shadow-4: 0 24px 60px rgba(10,22,40,.18), 0 8px 16px rgba(10,22,40,.08);
+  --shadow-5: 0 40px 100px rgba(10,22,40,.30), 0 12px 24px rgba(10,22,40,.12);
+  --shadow-glow: 0 12px 32px rgba(255,107,43,.32), 0 4px 12px rgba(255,107,43,.18);
+
+  /* Compat con tu nombres anteriores */
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-3);
+  --shadow-lg: var(--shadow-4);
+  --shadow-accent: var(--shadow-glow);
 
   /* Radios */
-  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --radius-sm: 10px;
   --radius-md: 16px;
-  --radius-lg: 24px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
   --radius-full: 999px;
 
+  /* Easing */
+  --ease-out: cubic-bezier(.22,.61,.36,1);
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+
   /* Layout */
-  --max-w: 1200px;
+  --max-w: 1240px;
   --gutter: 20px;
 
   color-scheme: light;
@@ -40,9 +79,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -53,9 +90,7 @@ body {
   overflow-x: hidden;
 }
 
-#root {
-  min-height: 100svh;
-}
+#root { min-height: 100svh; }
 
 h1, h2, h3, h4 {
   font-family: var(--font-heading);
@@ -65,33 +100,11 @@ h1, h2, h3, h4 {
   line-height: 1.05;
 }
 
-p {
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-}
-
-img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-}
-
-ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
+p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+img { display: block; max-width: 100%; height: auto; }
+ul { list-style: none; margin: 0; padding: 0; }
 
 .container {
   width: 100%;
@@ -102,72 +115,80 @@ ul {
 
 .section-title {
   font-family: var(--font-heading);
-  font-size: clamp(36px, 6vw, 64px);
+  font-size: clamp(40px, 6vw, 72px);
   letter-spacing: 1px;
-  line-height: 1.02;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .section-eyebrow {
   font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 5px;
   text-transform: uppercase;
   color: var(--color-accent);
   margin: 0 0 14px;
 }
 
+/* Botones premium */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14.5px;
   letter-spacing: 0.3px;
-  padding: 14px 28px;
+  padding: 15px 28px;
   border-radius: var(--radius-full);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s var(--ease-spring),
+    box-shadow 0.25s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
   white-space: nowrap;
+  cursor: pointer;
+  border: none;
 }
 
-.btn:hover {
-  transform: translateY(-2px);
-}
-
-.btn:active {
-  transform: translateY(0);
-}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
 
 .btn--primary {
   background: var(--color-accent);
   color: var(--color-light);
-  box-shadow: var(--shadow-accent);
+  box-shadow: var(--shadow-glow);
 }
-
 .btn--primary:hover {
   background: var(--color-accent-dark);
+  box-shadow: 0 18px 40px rgba(255,107,43,.45);
 }
 
 .btn--outline {
-  background: transparent;
+  background: rgba(255,255,255,.06);
   color: var(--color-light);
-  border: 2px solid var(--color-light);
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
-
 .btn--outline:hover {
-  background: var(--color-light);
-  color: var(--color-bg);
+  background: rgba(255,255,255,.16);
+  color: var(--color-light);
 }
 
 .btn--light {
   background: var(--color-light);
   color: var(--color-bg);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-3);
 }
+.btn--light:hover { background: var(--color-surface-2); }
 
-.btn--light:hover {
-  background: var(--color-surface-2);
+/* Animación de entrada utilitaria — usable en cualquier sección */
+@keyframes pf-rise {
+  from { transform: translateY(28px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
 }
+.rise { animation: pf-rise .9s var(--ease-out) both; }

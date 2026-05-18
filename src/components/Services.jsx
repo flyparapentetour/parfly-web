@@ -47,11 +47,12 @@ function Services() {
                 )}
                 <h3 className="service-card__title">{s.name}</h3>
                 <p className="service-card__desc">{s.description}</p>
-                <p className="service-card__price">{formatCOP(s.price)}</p>
-                <Link to="/reservar" className="service-card__link">
-                  Reservar
-                  <span aria-hidden="true">→</span>
-                </Link>
+                <div className="service-card__foot">
+                  <p className="service-card__price">{formatCOP(s.price)}</p>
+                  <Link to="/reservar" className="service-card__link">
+                    Reservar
+                  </Link>
+                </div>
               </article>
             ))}
           </div>

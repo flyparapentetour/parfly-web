@@ -1,0 +1,251 @@
+/* =============================================================
+   Fly Parapente Tour · Dashboard (refresh)
+   Estilos para KPIs, gráfico, resumen por sede, tablas, etc.
+   Importa este archivo desde Dashboard.jsx en vez del <style> inline.
+   ============================================================= */
+
+.dash-kpis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 720px) {
+  .dash-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1100px) {
+  .dash-kpis { grid-template-columns: repeat(4, 1fr); }
+}
+
+.kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 18px 16px;
+}
+
+.kpi__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.kpi__label {
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink-400);
+}
+
+.kpi__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 107, 43, 0.1);
+  color: var(--orange-500);
+}
+
+.kpi__icon--warn { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+.kpi__icon--ok   { background: rgba(4, 120, 87, 0.1); color: #047857; }
+.kpi__icon--info { background: rgba(30, 64, 175, 0.1); color: #1e40af; }
+
+.kpi__icon svg { width: 18px; height: 18px; }
+
+.kpi__value {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: -0.4px;
+  color: var(--navy-800);
+  line-height: 1.1;
+}
+
+.kpi__value--warn { color: #d97706; }
+.kpi__value--ok { color: #047857; }
+
+.kpi__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(4, 120, 87, 0.1);
+  color: #047857;
+  margin-top: 8px;
+}
+
+.kpi__delta--down { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+.kpi__delta--warn { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+
+.kpi__spark {
+  margin-top: 10px;
+  height: 32px;
+  width: 100%;
+}
+
+.kpi--accent {
+  background: linear-gradient(135deg, var(--navy-800), var(--navy-700));
+  color: #fff;
+  border-color: transparent;
+}
+.kpi--accent .kpi__label { color: rgba(255, 255, 255, 0.6); }
+.kpi--accent .kpi__value { color: #fff; }
+.kpi--accent .kpi__icon { background: rgba(255, 107, 43, 0.2); color: var(--orange-400); }
+
+/* ============== Filtros + gráfico ============== */
+.dash-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dash-filter {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--ink-100);
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dash-filter:hover { color: var(--navy-800); border-color: var(--ink-200); }
+
+.dash-filter--active {
+  background: var(--navy-800);
+  color: #fff;
+  border-color: var(--navy-800);
+}
+
+.chart-card { margin-top: 20px; }
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.chart-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.chart-head small {
+  color: var(--ink-400);
+  font-size: 12px;
+}
+
+.chart-total {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--orange-500);
+}
+
+.chart-svg {
+  width: 100%;
+  height: 220px;
+}
+
+/* ============== Resumen por sede ============== */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sede-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 700px)  { .sede-summary { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1100px) { .sede-summary { grid-template-columns: repeat(4, 1fr); } }
+
+.sede-card {
+  background: linear-gradient(180deg, var(--surface-2), #fff);
+  border: 1px solid var(--ink-100);
+  border-radius: 12px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sede-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+.sede-card__name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--navy-800);
+  margin: 0;
+}
+
+.sede-card__region {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.sede-card__metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ink-100);
+}
+
+.sede-card__metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sede-card__metrics span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.sede-card__metrics strong {
+  font-size: 15px;
+  color: var(--navy-800);
+  font-weight: 700;
+}
+
+.sede-card__metrics strong.accent {
+  color: var(--orange-500);
+}

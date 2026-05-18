@@ -1,40 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import Logo from './Logo'
 import './Navbar.css'
 
 const LINKS = [
   { href: '#inicio', label: 'Inicio' },
-  { href: '#servicios', label: 'Servicios' },
+  { href: '#servicios', label: 'Experiencias' },
   { href: '#sedes', label: 'Sedes' },
   { href: '#galeria', label: 'Galería' },
   { href: '#contacto', label: 'Contacto' },
 ]
-
-function ParapenteIcon() {
-  return (
-    <svg
-      className="navbar__logo-icon"
-      width="28"
-      height="28"
-      viewBox="0 0 32 32"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M2 10 C 8 4, 24 4, 30 10 L 27 14 L 22 11 L 16 14 L 10 11 L 5 14 Z"
-        fill="currentColor"
-      />
-      <path
-        d="M5 14 L 16 26 L 27 14"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        fill="none"
-        opacity="0.5"
-      />
-      <circle cx="16" cy="26" r="1.6" fill="currentColor" />
-    </svg>
-  )
-}
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -49,9 +24,7 @@ function Navbar() {
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
+    return () => { document.body.style.overflow = '' }
   }, [open])
 
   const closeMenu = () => setOpen(false)
@@ -60,17 +33,18 @@ function Navbar() {
     <header className={`navbar ${scrolled ? 'navbar--scrolled' : ''}`}>
       <div className="navbar__inner container">
         <a href="#inicio" className="navbar__logo" onClick={closeMenu}>
-          <ParapenteIcon />
-          <span className="navbar__logo-text">Fly Parapente Tour</span>
+          <Logo size={30} />
+          <span className="navbar__logo-stack">
+            <span className="navbar__logo-text">Fly Parapente Tour</span>
+            <span className="navbar__logo-sub">Parapente · Colombia</span>
+          </span>
         </a>
 
         <nav className="navbar__nav" aria-label="Navegación principal">
           <ul className="navbar__links">
             {LINKS.map((l) => (
               <li key={l.href}>
-                <a href={l.href} className="navbar__link">
-                  {l.label}
-                </a>
+                <a href={l.href} className="navbar__link">{l.label}</a>
               </li>
             ))}
           </ul>
@@ -87,9 +61,7 @@ function Navbar() {
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          <span />
-          <span />
-          <span />
+          <span /><span /><span />
         </button>
       </div>
 

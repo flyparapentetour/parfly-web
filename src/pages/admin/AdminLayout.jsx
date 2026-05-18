@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { ADMIN_NAV } from '../../constants/sedes'
+import Logo from '../../components/Logo'
 import './AdminLayout.css'
 
 const ICONS = {
@@ -62,6 +63,11 @@ const ICONS = {
   ),
 }
 
+function userInitials(email) {
+  if (!email) return 'PF'
+  return email.slice(0, 2).toUpperCase()
+}
+
 function AdminLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -76,10 +82,10 @@ function AdminLayout() {
     <div className="admin-shell">
       <aside className={`admin-sidebar ${mobileOpen ? 'admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__brand">
-          <span className="admin-sidebar__mark">▲</span>
-          <div>
-            <strong>Fly Parapente</strong>
-            <small>Panel Admin</small>
+          <Logo size={30} />
+          <div className="admin-sidebar__brand-text">
+            <strong>Fly Parapente Tour</strong>
+            <small>Panel admin</small>
           </div>
         </div>
 
@@ -101,9 +107,13 @@ function AdminLayout() {
         </nav>
 
         <div className="admin-sidebar__footer">
-          <p className="admin-sidebar__user" title={user?.email}>
-            {user?.email}
-          </p>
+          <div className="admin-sidebar__user">
+            <div className="admin-sidebar__avatar">{userInitials(user?.email)}</div>
+            <div className="admin-sidebar__user-meta">
+              <strong>{user?.displayName || 'Administrador'}</strong>
+              <small>{user?.email}</small>
+            </div>
+          </div>
           <button type="button" className="admin-sidebar__logout" onClick={handleSignOut}>
             Cerrar sesión
           </button>
@@ -120,7 +130,11 @@ function AdminLayout() {
           >
             <span /><span /><span />
           </button>
-          <div className="admin-topbar__title">Panel Admin</div>
+          <div className="admin-topbar__crumbs">
+            <span>Fly Parapente Tour</span>
+            <span>/</span>
+            <strong>Panel admin</strong>
+          </div>
         </header>
         <div className="admin-content">
           <Outlet />

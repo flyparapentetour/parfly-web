@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom'
 import { useCollection } from '../../hooks/useCollection'
 import { isRevenueStatus, STATUS_LABELS, updateBookingStatus } from '../../services/bookings'
 import { formatCOP, SEDES, SEDE_BY_ID } from '../../constants/sedes'
+import './Dashboard.css'
 
+/* ----------------------------- helpers ----------------------------- */
 function startOfDay(date) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
@@ -17,7 +19,6 @@ function bookingDate(b) {
   return null
 }
 
-// Monday-anchored week start
 function startOfWeek(d) {
   const x = new Date(d)
   x.setHours(0, 0, 0, 0)
@@ -30,6 +31,42 @@ function shortWeek(d) {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
 }
 
+function userInitials(name = '') {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join('') || 'PF'
+}
+
+/* ----------------------------- icons ------------------------------- */
+const I = {
+  cal: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  money: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M3 12c4-8 14-8 18 0M6 12c2-4 10-4 12 0M9 12c.8-1.5 5.2-1.5 6 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  clock: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M3 18l6-6 4 4 8-8M14 8h6v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+}
+
+/* ----------------------------- chart ------------------------------- */
 function RevenueChart({ bookings }) {
   const data = useMemo(() => {
     const now = startOfWeek(new Date())
@@ -53,6 +90,7 @@ function RevenueChart({ bookings }) {
 
   const max = Math.max(1, ...data.map((w) => w.total))
   const total8w = data.reduce((acc, w) => acc + w.total, 0)
+  const lastIdx = data.length - 1
 
   return (
     <div className="admin-card chart-card">
@@ -63,10 +101,21 @@ function RevenueChart({ bookings }) {
         </div>
         <strong className="chart-total">{formatCOP(total8w)}</strong>
       </div>
-      <svg viewBox="0 0 800 220" preserveAspectRatio="none" className="chart-svg" role="img" aria-label="Ingresos por semana">
-        {/* grid lines */}
+      <svg
+        viewBox="0 0 800 220"
+        preserveAspectRatio="none"
+        className="chart-svg"
+        role="img"
+        aria-label="Ingresos por semana"
+      >
+        <defs>
+          <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#FF8A4D" />
+            <stop offset="100%" stopColor="#FF6B2B" />
+          </linearGradient>
+        </defs>
         {[0, 0.25, 0.5, 0.75, 1].map((g) => (
-          <line key={g} x1="40" x2="790" y1={20 + g * 160} y2={20 + g * 160} stroke="#e5e7eb" strokeWidth="1" />
+          <line key={g} x1="40" x2="790" y1={20 + g * 160} y2={20 + g * 160} stroke="#eef1f7" strokeWidth="1" />
         ))}
         {data.map((w, i) => {
           const barW = 60
@@ -74,15 +123,17 @@ function RevenueChart({ bookings }) {
           const x = 40 + gap + i * (barW + gap)
           const h = (w.total / max) * 160
           const y = 180 - h
+          const fill = i === lastIdx ? '#0A1628' : 'url(#bar-grad)'
           return (
             <g key={i}>
               <title>{`${shortWeek(w.start)} → ${formatCOP(w.total)}`}</title>
-              <rect x={x} y={y} width={barW} height={h} fill="#ff6b2b" rx="6" />
+              <rect x={x} y={y} width={barW} height={h} fill={fill} rx="6" />
               <text
                 x={x + barW / 2}
                 y={205}
                 fontSize="11"
-                fill="#6b7280"
+                fill={i === lastIdx ? '#0A1628' : '#9ca3af'}
+                fontWeight={i === lastIdx ? 700 : 400}
                 textAnchor="middle"
                 fontFamily="Inter, sans-serif"
               >
@@ -92,18 +143,30 @@ function RevenueChart({ bookings }) {
           )
         })}
       </svg>
-      <style>{`
-        .chart-card { margin-top: 20px; }
-        .chart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-        .chart-head h2 { font-size: 16px; font-weight: 700; }
-        .chart-head small { color: #6b7280; font-size: 12px; }
-        .chart-total { color: #ff6b2b; font-size: 24px; font-weight: 700; }
-        .chart-svg { width: 100%; height: 220px; }
-      `}</style>
     </div>
   )
 }
 
+/* --------------------------- KPI card -------------------------------*/
+function Kpi({ label, value, delta, deltaTone = 'ok', icon, iconTone = '', accent = false, spark }) {
+  return (
+    <div className={`admin-card kpi ${accent ? 'kpi--accent' : ''}`}>
+      <div className="kpi__head">
+        <span className="kpi__label">{label}</span>
+        <div className={`kpi__icon ${iconTone ? `kpi__icon--${iconTone}` : ''}`}>{icon}</div>
+      </div>
+      <div className="kpi__value">{value}</div>
+      {delta && <span className={`kpi__delta kpi__delta--${deltaTone}`}>{delta}</span>}
+      {spark && (
+        <svg className="kpi__spark" viewBox="0 0 200 32" preserveAspectRatio="none">
+          <path d={spark} stroke="currentColor" strokeWidth="2" fill="none" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/* --------------------------- Dashboard ------------------------------*/
 function Dashboard() {
   const { data: bookings, loading } = useCollection('bookings', [orderBy('createdAt', 'desc')])
 
@@ -149,37 +212,53 @@ function Dashboard() {
   return (
     <div>
       <div className="admin-page__head">
-        <h1>Dashboard</h1>
-        <p>Resumen de actividad, ingresos y reservas recientes.</p>
+        <div>
+          <h1>Dashboard</h1>
+          <p>Resumen de actividad, ingresos y reservas recientes.</p>
+        </div>
       </div>
 
-      <div className="admin-grid admin-grid--4 dash-kpis">
-        <div className="admin-card kpi">
-          <span className="kpi__label">Reservas hoy / próximas</span>
-          <strong className="kpi__value">{stats.todayCount}</strong>
-        </div>
-        <div className="admin-card kpi">
-          <span className="kpi__label">Ingresos del mes</span>
-          <strong className="kpi__value">{formatCOP(stats.monthIncome)}</strong>
-        </div>
-        <div className="admin-card kpi">
-          <span className="kpi__label">Pendientes</span>
-          <strong className="kpi__value kpi__value--warn">{stats.pending}</strong>
-        </div>
-        <div className="admin-card kpi">
-          <span className="kpi__label">Confirmadas</span>
-          <strong className="kpi__value kpi__value--ok">{stats.confirmed}</strong>
-        </div>
+      <div className="dash-kpis">
+        <Kpi
+          label="Reservas próximas"
+          value={stats.todayCount}
+          delta="↑ esta semana"
+          icon={I.cal}
+        />
+        <Kpi
+          label="Ingresos del mes"
+          value={formatCOP(stats.monthIncome)}
+          delta="↑ vs mes anterior"
+          accent
+          icon={I.money}
+        />
+        <Kpi
+          label="Pendientes"
+          value={stats.pending}
+          delta={stats.pending > 0 ? `${stats.pending} por revisar` : 'al día'}
+          deltaTone={stats.pending > 0 ? 'warn' : 'ok'}
+          iconTone="warn"
+          icon={I.clock}
+        />
+        <Kpi
+          label="Confirmadas"
+          value={stats.confirmed}
+          delta="vuelos asegurados"
+          iconTone="ok"
+          icon={I.check}
+        />
       </div>
 
       <RevenueChart bookings={bookings} />
 
       <div className="admin-card" style={{ marginTop: 20 }}>
         <div className="card-head">
-          <h2>Resumen por sede · este mes</h2>
-          <small style={{ color: '#6b7280' }}>Reservas e ingresos del mes actual</small>
+          <div>
+            <h2>Resumen por sede · este mes</h2>
+            <small style={{ color: 'var(--ink-400)' }}>Reservas e ingresos del mes actual</small>
+          </div>
         </div>
-        <div className="admin-grid admin-grid--4 sede-summary">
+        <div className="sede-summary">
           {sedeSummary.map((s) => (
             <div key={s.id} className="sede-card">
               <div className="sede-card__name">{s.name}</div>
@@ -191,7 +270,7 @@ function Dashboard() {
                 </div>
                 <div>
                   <span>Ingresos</span>
-                  <strong>{formatCOP(s.revenue)}</strong>
+                  <strong className="accent">{formatCOP(s.revenue)}</strong>
                 </div>
               </div>
             </div>
@@ -208,9 +287,9 @@ function Dashboard() {
         </div>
 
         {loading ? (
-          <p style={{ color: '#6b7280' }}>Cargando…</p>
+          <p style={{ color: 'var(--ink-400)' }}>Cargando…</p>
         ) : latest.length === 0 ? (
-          <p style={{ color: '#6b7280' }}>Aún no hay reservas.</p>
+          <p style={{ color: 'var(--ink-400)' }}>Aún no hay reservas.</p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
@@ -225,22 +304,31 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {latest.map((b) => (
+                {latest.map((b, idx) => (
                   <tr key={b.id}>
                     <td>
-                      <strong>{b.clientName}</strong>
-                      <br />
-                      <small style={{ color: '#6b7280' }}>{b.serviceName}</small>
+                      <div className="admin-table__client">
+                        <div className={`admin-table__avatar ${idx % 2 ? 'admin-table__avatar--alt' : ''}`}>
+                          {userInitials(b.clientName)}
+                        </div>
+                        <div>
+                          <strong>{b.clientName}</strong>
+                          <br />
+                          <small style={{ color: 'var(--ink-400)' }}>{b.serviceName}</small>
+                        </div>
+                      </div>
                     </td>
                     <td>{SEDE_BY_ID[b.sede]?.name || b.sede}</td>
                     <td>
                       {b.date}
                       <br />
-                      <small style={{ color: '#6b7280' }}>{b.time}</small>
+                      <small style={{ color: 'var(--ink-400)' }}>{b.time}</small>
                     </td>
-                    <td>{formatCOP(b.total)}</td>
+                    <td><strong>{formatCOP(b.total)}</strong></td>
                     <td>
-                      <span className={`admin-badge admin-badge--${b.status}`}>{STATUS_LABELS[b.status] || b.status}</span>
+                      <span className={`admin-badge admin-badge--${b.status}`}>
+                        {STATUS_LABELS[b.status] || b.status}
+                      </span>
                     </td>
                     <td>
                       {b.status === 'pending' && (
@@ -269,25 +357,6 @@ function Dashboard() {
           </div>
         )}
       </div>
-
-      <style>{`
-        .dash-kpis { margin-bottom: 4px; }
-        .kpi { display: flex; flex-direction: column; gap: 6px; }
-        .kpi__label { font-size: 12px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: #6b7280; }
-        .kpi__value { font-size: 30px; font-weight: 700; color: #0a1628; }
-        .kpi__value--warn { color: #d97706; }
-        .kpi__value--ok { color: #047857; }
-        .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
-        .card-head h2 { font-size: 16px; font-weight: 700; }
-        .sede-summary { gap: 12px; }
-        .sede-card { background: #f8f9fa; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
-        .sede-card__name { font-size: 14px; font-weight: 700; color: #0a1628; }
-        .sede-card__region { font-size: 11px; color: #6b7280; letter-spacing: 0.3px; text-transform: uppercase; }
-        .sede-card__metrics { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; }
-        .sede-card__metrics > div { display: flex; flex-direction: column; }
-        .sede-card__metrics span { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #6b7280; }
-        .sede-card__metrics strong { font-size: 16px; color: #0a1628; }
-      `}</style>
     </div>
   )
 }

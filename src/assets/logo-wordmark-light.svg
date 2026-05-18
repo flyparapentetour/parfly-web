@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 96" fill="none" role="img" aria-label="Fly Parapente Tour">
+  
+  <g transform="translate(0,8)">
+    <defs>
+      <linearGradient id="wm-wing" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#FF8A4D"></stop>
+        <stop offset="100%" stop-color="#FF6B2B"></stop>
+      </linearGradient>
+    </defs>
+    <path d="M4 36 C 12 10, 84 10, 92 36 L 84 42 C 76 22, 20 22, 12 42 Z" fill="url(#wm-wing)"></path>
+    <g stroke="#0A1628" stroke-width="1.2" stroke-linecap="round" opacity=".7">
+      <line x1="22" y1="22" x2="22" y2="38"></line>
+      <line x1="36" y1="16" x2="36" y2="37"></line>
+      <line x1="48" y1="14" x2="48" y2="37"></line>
+      <line x1="60" y1="16" x2="60" y2="37"></line>
+      <line x1="74" y1="22" x2="74" y2="38"></line>
+    </g>
+    <g stroke="#FF6B2B" stroke-linecap="round">
+      <line x1="14" y1="40" x2="48" y2="70" stroke-width="1.6"></line>
+      <line x1="82" y1="40" x2="48" y2="70" stroke-width="1.6"></line>
+      <line x1="30" y1="38" x2="48" y2="70" stroke-width="1.1" opacity=".55"></line>
+      <line x1="66" y1="38" x2="48" y2="70" stroke-width="1.1" opacity=".55"></line>
+    </g>
+    <circle cx="48" cy="70" r="4" fill="#0A1628"></circle>
+    <circle cx="48" cy="70" r="2.2" fill="#FF6B2B"></circle>
+  </g>
+
+  
+  <g font-family="&#39;Bebas Neue&#39;, sans-serif" fill="#0A1628">
+    <text x="116" y="56" font-size="46" letter-spacing="2">FLY PARAPENTE TOUR</text>
+  </g>
+  <text x="118" y="80" font-family="Inter, sans-serif" font-size="10" letter-spacing="4" fill="#FF6B2B" font-weight="600">PARAPENTE · COLOMBIA</text>
+</svg>
