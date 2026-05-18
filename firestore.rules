@@ -16,6 +16,7 @@ service cloud.firestore {
     // because it stores the secretKey.
     match /settings/general        { allow read; allow write: if isSignedIn(); }
     match /settings/legal          { allow read; allow write: if isSignedIn(); }
+    match /settings/schedule       { allow read; allow write: if isSignedIn(); }
     match /settings/bold           { allow read, write: if isSignedIn(); }
 
     // Availability tree: public read, admin write.

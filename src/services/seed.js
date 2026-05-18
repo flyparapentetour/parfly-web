@@ -3,11 +3,10 @@ import {
   doc,
   getDocs,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import { DEFAULT_SLOTS, SEDES } from '../constants/sedes'
+import { buildDefaultSchedule } from './schedule'
 
 const SERVICES_SEED = [
   {
@@ -52,17 +51,6 @@ const TESTIMONIALS_SEED = [
   { id: 't3', name: 'Camila Restrepo', city: 'Cali', rating: 5, active: true, text: 'Regalé un vuelo a mi pareja y se enamoró. La sede de Roldanillo es magia pura. Repetiremos sin dudarlo.' },
 ]
 
-const datesNext = (days) => {
-  const out = []
-  const today = new Date()
-  for (let i = 0; i < days; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    out.push(d.toISOString().slice(0, 10))
-  }
-  return out
-}
-
 async function isCollectionEmpty(path) {
   const snap = await getDocs(collection(db, path))
   return snap.empty
@@ -102,23 +90,11 @@ export async function seedDemoData({ force = false } = {}) {
     { publicKey: '', secretKey: '', active: false },
     { merge: true },
   )
-  report.push('settings/general + settings/bold')
+  batch.set(doc(db, 'settings', 'schedule'), buildDefaultSchedule(), { merge: true })
+  report.push('settings/general + settings/bold + settings/schedule')
 
   await batch.commit()
-
-  // Availability seed (next 14 days, all sedes, default slots). Separate writes
-  // to avoid hitting batch size limits on long horizons.
-  const dates = datesNext(14)
-  for (const sede of SEDES) {
-    for (const date of dates) {
-      await setDoc(
-        doc(db, 'availability', sede.id, 'slots', date),
-        { slots: DEFAULT_SLOTS },
-        { merge: true },
-      )
-    }
-  }
-  report.push(`availability: ${SEDES.length} sedes × ${dates.length} días`)
+  report.push('disponibilidad: abierta por defecto en todas las sedes')
 
   return report
 }

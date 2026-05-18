@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
 import { db } from '../../firebase/config'
 import { createBooking } from '../../services/bookings'
 import { startBoldCheckout, buildWhatsAppPaymentMessage } from '../../services/bold'
+import { resolveSlots, sedeBase, todayISO } from '../../services/schedule'
 import {
   SEDES,
   SEDE_BY_ID,
-  DEFAULT_SLOTS,
   formatCOP,
-  normalizeSlots,
 } from '../../constants/sedes'
 import './Booking.css'
 
@@ -39,9 +38,8 @@ function Stepper({ step }) {
   )
 }
 
-function CalendarPicker({ sedeId, value, onChange }) {
+function CalendarPicker({ sedeId, sedeEnabled, value, onChange }) {
   const [monthOffset, setMonthOffset] = useState(0)
-  const [availableDates, setAvailableDates] = useState(new Set())
   const [blockedDates, setBlockedDates] = useState(new Set())
 
   const today = useMemo(() => {
@@ -60,31 +58,21 @@ function CalendarPicker({ sedeId, value, onChange }) {
     let alive = true
     ;(async () => {
       try {
-        const [slotsSnap, blockedSnap] = await Promise.all([
-          getDocs(collection(db, `availability/${sedeId}/slots`)),
-          getDocs(collection(db, `blocked/${sedeId}/dates`)),
-        ])
+        const blockedSnap = await getDocs(collection(db, `blocked/${sedeId}/dates`))
         if (!alive) return
-        const avail = new Set()
-        slotsSnap.forEach((d) => {
-          const data = d.data()
-          const slots = normalizeSlots(data.slots)
-          if (slots.length > 0) avail.add(d.id)
-        })
         const blocked = new Set()
         blockedSnap.forEach((d) => {
           if (d.data().blocked) blocked.add(d.id)
         })
-        setAvailableDates(avail)
         setBlockedDates(blocked)
       } catch (e) {
-        console.error('availability fetch', e)
+        console.error('blocked fetch', e)
       }
     })()
     return () => {
       alive = false
     }
-  }, [sedeId, monthOffset])
+  }, [sedeId])
 
   const monthName = view.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
   const firstDow = (new Date(view.getFullYear(), view.getMonth(), 1).getDay() + 6) % 7
@@ -114,8 +102,8 @@ function CalendarPicker({ sedeId, value, onChange }) {
         <button
           type="button"
           className="calendar__nav"
-          disabled={monthOffset >= 1}
-          onClick={() => setMonthOffset((m) => Math.min(1, m + 1))}
+          disabled={monthOffset >= 2}
+          onClick={() => setMonthOffset((m) => Math.min(2, m + 1))}
         >
           ›
         </button>
@@ -132,7 +120,7 @@ function CalendarPicker({ sedeId, value, onChange }) {
           const dateObj = new Date(view.getFullYear(), view.getMonth(), d)
           const isPast = dateObj < today
           const isBlocked = blockedDates.has(iso)
-          const available = availableDates.has(iso) && !isPast && !isBlocked
+          const available = sedeEnabled && !isPast && !isBlocked
           const selected = value === iso
           return (
             <button
@@ -152,9 +140,9 @@ function CalendarPicker({ sedeId, value, onChange }) {
   )
 }
 
-function TimePicker({ sedeId, date, value, onChange }) {
+function TimePicker({ sedeId, date, schedule, value, onChange }) {
   const [slots, setSlots] = useState([])
-  const [usage, setUsage] = useState({}) // { '09:00': 2, ... }
+  const [usage, setUsage] = useState({})
 
   useEffect(() => {
     if (!sedeId || !date) {
@@ -165,13 +153,23 @@ function TimePicker({ sedeId, date, value, onChange }) {
     let alive = true
     ;(async () => {
       try {
-        // Load slot config
-        const snap = await getDocs(collection(db, `availability/${sedeId}/slots`))
+        const [overrideSnap, blockedSnap] = await Promise.all([
+          getDoc(doc(db, 'availability', sedeId, 'slots', date)),
+          getDoc(doc(db, 'blocked', sedeId, 'dates', date)),
+        ])
         if (!alive) return
-        const docu = snap.docs.find((d) => d.id === date)
-        setSlots(normalizeSlots(docu ? docu.data().slots : DEFAULT_SLOTS))
+        const blocked = blockedSnap.exists() && blockedSnap.data().blocked === true
+        const overrideSlots = overrideSnap.exists() ? overrideSnap.data().slots : null
+        const resolved = resolveSlots({
+          sedeId,
+          date,
+          baseSchedule: schedule,
+          overrideSlots,
+          blocked,
+          today: todayISO(),
+        })
+        setSlots(resolved)
 
-        // Count confirmed bookings for that sede + date, grouped by time
         const q = query(
           collection(db, 'bookings'),
           where('sede', '==', sedeId),
@@ -188,14 +186,14 @@ function TimePicker({ sedeId, date, value, onChange }) {
         setUsage(used)
       } catch (e) {
         console.error('slots fetch', e)
-        setSlots(DEFAULT_SLOTS)
+        setSlots([])
         setUsage({})
       }
     })()
     return () => {
       alive = false
     }
-  }, [sedeId, date])
+  }, [sedeId, date, schedule])
 
   if (!date) {
     return <p className="booking__hint">Selecciona primero una fecha.</p>
@@ -244,6 +242,12 @@ function Booking() {
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const { data: settingsGeneral } = useDoc('settings/general')
   const { data: settingsBold } = useDoc('settings/bold')
+  const { data: schedule } = useDoc('settings/schedule')
+
+  const sedeEnabled = useMemo(
+    () => (sedeId ? sedeBase(schedule, sedeId).enabled : false),
+    [schedule, sedeId],
+  )
 
   const total = useMemo(() => {
     const base = selectedService?.price || 0
@@ -454,19 +458,32 @@ function Booking() {
                 ))}
               </div>
 
-              {sedeId && (
+              {sedeId && !sedeEnabled && (
+                <p className="booking__hint" style={{ marginTop: 20 }}>
+                  Esta sede no está operando en este momento. Elige otra o
+                  contáctanos por WhatsApp.
+                </p>
+              )}
+              {sedeId && sedeEnabled && (
                 <div className="booking__cal-time">
                   <div className="booking__cal-col">
                     <h3 className="step-pane__sub">Selecciona fecha</h3>
                     <CalendarPicker
                       sedeId={sedeId}
+                      sedeEnabled={sedeEnabled}
                       value={date}
                       onChange={(d) => { setDate(d); setTime('') }}
                     />
                   </div>
                   <div className="booking__time-col">
                     <h3 className="step-pane__sub">Horario</h3>
-                    <TimePicker sedeId={sedeId} date={date} value={time} onChange={setTime} />
+                    <TimePicker
+                      sedeId={sedeId}
+                      date={date}
+                      schedule={schedule}
+                      value={time}
+                      onChange={setTime}
+                    />
                   </div>
                 </div>
               )}
