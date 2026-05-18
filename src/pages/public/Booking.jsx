@@ -141,12 +141,17 @@ function CalendarPicker({ sedeId, sedeEnabled, value, onChange }) {
 }
 
 function TimePicker({ sedeId, date, schedule, value, onChange }) {
-  const [slots, setSlots] = useState([])
+  // Datos crudos del día: override + estado bloqueado. SOLO se refresca
+  // cuando cambia sede o fecha — no cuando Firestore re-emite el doc
+  // de `settings/schedule` (que es donde estaba el bug del parpadeo en
+  // mobile: snapshot re-emit → effect re-fetch → red hipo durante
+  // scroll → catch reseteaba slots a []).
+  const [daySnap, setDaySnap] = useState(null) // { blocked, override }
   const [usage, setUsage] = useState({})
 
   useEffect(() => {
     if (!sedeId || !date) {
-      setSlots([])
+      setDaySnap(null)
       setUsage({})
       return
     }
@@ -158,17 +163,10 @@ function TimePicker({ sedeId, date, schedule, value, onChange }) {
           getDoc(doc(db, 'blocked', sedeId, 'dates', date)),
         ])
         if (!alive) return
-        const blocked = blockedSnap.exists() && blockedSnap.data().blocked === true
-        const overrideSlots = overrideSnap.exists() ? overrideSnap.data().slots : null
-        const resolved = resolveSlots({
-          sedeId,
-          date,
-          baseSchedule: schedule,
-          overrideSlots,
-          blocked,
-          today: todayISO(),
+        setDaySnap({
+          blocked: blockedSnap.exists() && blockedSnap.data().blocked === true,
+          override: overrideSnap.exists() ? overrideSnap.data().slots : null,
         })
-        setSlots(resolved)
 
         const q = query(
           collection(db, 'bookings'),
@@ -185,18 +183,37 @@ function TimePicker({ sedeId, date, schedule, value, onChange }) {
         })
         setUsage(used)
       } catch (e) {
+        // OJO: no reseteamos `daySnap` ni `usage` si la red tiene un
+        // hipo en mobile durante el scroll. Preservar el último estado
+        // bueno evita el parpadeo de horarios.
         console.error('slots fetch', e)
-        setSlots([])
-        setUsage({})
       }
     })()
     return () => {
       alive = false
     }
-  }, [sedeId, date, schedule])
+  }, [sedeId, date])
+
+  // Resolución de slots a partir del snap y el schedule. Cuando el
+  // schedule cambia (snapshot re-emit) sólo recalculamos localmente,
+  // sin volver a la red.
+  const slots = useMemo(() => {
+    if (!date || !daySnap) return []
+    return resolveSlots({
+      sedeId,
+      date,
+      baseSchedule: schedule,
+      overrideSlots: daySnap.override,
+      blocked: daySnap.blocked,
+      today: todayISO(),
+    })
+  }, [sedeId, date, schedule, daySnap])
 
   if (!date) {
     return <p className="booking__hint">Selecciona primero una fecha.</p>
+  }
+  if (!daySnap) {
+    return <p className="booking__hint">Cargando horarios…</p>
   }
   if (slots.length === 0) {
     return <p className="booking__hint">No hay horarios disponibles para ese día.</p>
@@ -482,13 +499,15 @@ function Booking() {
                         setTime('')
                         // En mobile el calendario ocupa casi toda la
                         // pantalla, así que el bloque de horarios queda
-                        // debajo del fold. Sin este scroll el usuario
-                        // selecciona fecha y cree que "no se despliegan".
+                        // debajo del fold. Hacemos un scroll INSTANTÁNEO
+                        // (sin behavior: 'smooth') porque la animación
+                        // de scroll en iOS dispara el colapso de la URL
+                        // bar, lo que causaba un hipo de red mientras
+                        // los snapshots de Firestore se re-emitían
+                        // → se veían los horarios parpadear y desaparecer.
                         if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-                          // Esperamos al próximo paint para que el
-                          // TimePicker ya esté en el DOM con su contenido.
                           requestAnimationFrame(() => {
-                            timeColRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            timeColRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' })
                           })
                         }
                       }}
