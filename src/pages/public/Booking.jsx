@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useCollection'
@@ -228,6 +228,7 @@ function TimePicker({ sedeId, date, schedule, value, onChange }) {
 function Booking() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const timeColRef = useRef(null)
   const [step, setStep] = useState(0)
   const [selectedService, setSelectedService] = useState(null)
   const initialSede = searchParams.get('sede') && SEDE_BY_ID[searchParams.get('sede')]
@@ -346,7 +347,7 @@ function Booking() {
     const payload = buildBookingPayload('whatsapp')
     const wa = buildWhatsAppPaymentMessage(
       { ...payload, id, sede: SEDE_BY_ID[sedeId]?.name || sedeId, total: amountPaid },
-      settingsGeneral?.whatsapp || '+57 300 000 0000',
+      settingsGeneral?.whatsapp || '',
     )
     window.open(wa, '_blank', 'noopener')
   }
@@ -476,10 +477,24 @@ function Booking() {
                       sedeId={sedeId}
                       sedeEnabled={sedeEnabled}
                       value={date}
-                      onChange={(d) => { setDate(d); setTime('') }}
+                      onChange={(d) => {
+                        setDate(d)
+                        setTime('')
+                        // En mobile el calendario ocupa casi toda la
+                        // pantalla, así que el bloque de horarios queda
+                        // debajo del fold. Sin este scroll el usuario
+                        // selecciona fecha y cree que "no se despliegan".
+                        if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+                          // Esperamos al próximo paint para que el
+                          // TimePicker ya esté en el DOM con su contenido.
+                          requestAnimationFrame(() => {
+                            timeColRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          })
+                        }
+                      }}
                     />
                   </div>
-                  <div className="booking__time-col">
+                  <div className="booking__time-col" ref={timeColRef}>
                     <h3 className="step-pane__sub">Horario</h3>
                     <TimePicker
                       sedeId={sedeId}

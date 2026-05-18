@@ -1,10 +1,16 @@
+import { useDoc } from '../hooks/useDoc'
 import './WhatsAppFloat.css'
 
-const PHONE = '573000000000'
 const MESSAGE = 'Hola, quiero información sobre los vuelos en parapente.'
 
 function WhatsAppFloat() {
-  const href = `https://wa.me/${PHONE}?text=${encodeURIComponent(MESSAGE)}`
+  const { data: settings } = useDoc('settings/general')
+  const phone = (settings?.whatsapp || '').replace(/\D/g, '')
+  // Si aún no está configurado en Ajustes → Contacto, no renderizamos
+  // el botón flotante para evitar enlaces rotos.
+  if (!phone) return null
+
+  const href = `https://wa.me/${phone}?text=${encodeURIComponent(MESSAGE)}`
   return (
     <a
       href={href}

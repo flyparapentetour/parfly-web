@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useDoc } from '../hooks/useDoc'
 import './Footer.css'
 
 const SOCIALS = [
@@ -49,6 +50,8 @@ const SOCIALS = [
 
 function Footer() {
   const year = new Date().getFullYear()
+  const { data: settings } = useDoc('settings/general')
+  const whatsapp = settings?.whatsapp?.trim()
   return (
     <footer id="contacto" className="footer">
       <div className="container footer__inner">
@@ -95,7 +98,7 @@ function Footer() {
           <div className="footer__col">
             <h4 className="footer__col-title">Contacto</h4>
             <ul>
-              <li>WhatsApp: +57 300 000 0000</li>
+              {whatsapp && <li>WhatsApp: {whatsapp}</li>}
               <li>hola@flyparapente.tour</li>
             </ul>
           </div>
