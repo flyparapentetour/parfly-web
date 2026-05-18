@@ -140,7 +140,7 @@ function CalendarPicker({ sedeId, sedeEnabled, value, onChange }) {
   )
 }
 
-function TimePicker({ sedeId, date, schedule, value, onChange }) {
+function TimePicker({ sedeId, date, schedule, scheduleLoading, value, onChange }) {
   // Datos crudos del día: override + estado bloqueado. SOLO se refresca
   // cuando cambia sede o fecha — no cuando Firestore re-emite el doc
   // de `settings/schedule` (que es donde estaba el bug del parpadeo en
@@ -212,7 +212,13 @@ function TimePicker({ sedeId, date, schedule, value, onChange }) {
   if (!date) {
     return <p className="booking__hint">Selecciona primero una fecha.</p>
   }
-  if (!daySnap) {
+  // Estado de carga: cualquiera de los dos inputs todavía sin llegar.
+  // En mobile con red lenta, daySnap (override+blocked) y schedule
+  // (settings/schedule) pueden llegar en orden invertido al de desktop.
+  // Mostrar el resultado de resolveSlots antes de tener AMBOS produce
+  // el bug del parpadeo: primero salen los defaults, luego al llegar
+  // schedule real pueden resolverse a [] → "No hay horarios".
+  if (scheduleLoading || !daySnap) {
     return <p className="booking__hint">Cargando horarios…</p>
   }
   if (slots.length === 0) {
@@ -264,7 +270,7 @@ function Booking() {
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const { data: settingsGeneral } = useDoc('settings/general')
   const { data: settingsBold } = useDoc('settings/bold')
-  const { data: schedule } = useDoc('settings/schedule')
+  const { data: schedule, loading: scheduleLoading } = useDoc('settings/schedule')
 
   const sedeEnabled = useMemo(
     () => (sedeId ? sedeBase(schedule, sedeId).enabled : false),
@@ -519,6 +525,7 @@ function Booking() {
                       sedeId={sedeId}
                       date={date}
                       schedule={schedule}
+                      scheduleLoading={scheduleLoading}
                       value={time}
                       onChange={setTime}
                     />
