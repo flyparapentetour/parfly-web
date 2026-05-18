@@ -17,6 +17,8 @@ service cloud.firestore {
     match /settings/general        { allow read; allow write: if isSignedIn(); }
     match /settings/legal          { allow read; allow write: if isSignedIn(); }
     match /settings/schedule       { allow read; allow write: if isSignedIn(); }
+    match /settings/stats          { allow read; allow write: if isSignedIn(); }
+    match /settings/faq            { allow read; allow write: if isSignedIn(); }
     match /settings/bold           { allow read, write: if isSignedIn(); }
 
     // Availability tree: public read, admin write.

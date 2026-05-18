@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { orderBy } from 'firebase/firestore'
 import { Link } from 'react-router-dom'
 import { useCollection } from '../../hooks/useCollection'
-import { updateBookingStatus } from '../../services/bookings'
-import { formatCOP, SEDE_BY_ID } from '../../constants/sedes'
+import { isRevenueStatus, STATUS_LABELS, updateBookingStatus } from '../../services/bookings'
+import { formatCOP, SEDES, SEDE_BY_ID } from '../../constants/sedes'
 
 function startOfDay(date) {
   const d = new Date(date)
@@ -42,7 +42,7 @@ function RevenueChart({ bookings }) {
       weeks.push({ start, end, total: 0 })
     }
     bookings.forEach((b) => {
-      if (b.status !== 'confirmed') return
+      if (!isRevenueStatus(b.status)) return
       const d = bookingDate(b)
       if (!d) return
       const w = weeks.find((w) => d >= w.start && d < w.end)
@@ -117,13 +117,31 @@ function Dashboard() {
     bookings.forEach((b) => {
       const d = bookingDate(b)
       if (d && d >= today) todayCount++
-      if (d && d >= firstOfMonth && b.status === 'confirmed') {
+      if (d && d >= firstOfMonth && isRevenueStatus(b.status)) {
         monthIncome += b.total || 0
       }
       if (b.status === 'pending') pending++
       if (b.status === 'confirmed') confirmed++
     })
     return { todayCount, monthIncome, pending, confirmed }
+  }, [bookings])
+
+  const sedeSummary = useMemo(() => {
+    const today = startOfDay(new Date())
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const map = {}
+    SEDES.forEach((s) => {
+      map[s.id] = { id: s.id, name: s.name, region: s.region, count: 0, revenue: 0 }
+    })
+    bookings.forEach((b) => {
+      const d = bookingDate(b)
+      if (!d || d < firstOfMonth) return
+      const row = map[b.sede]
+      if (!row) return
+      row.count++
+      if (isRevenueStatus(b.status)) row.revenue += b.total || 0
+    })
+    return SEDES.map((s) => map[s.id])
   }, [bookings])
 
   const latest = bookings.slice(0, 10)
@@ -155,6 +173,31 @@ function Dashboard() {
       </div>
 
       <RevenueChart bookings={bookings} />
+
+      <div className="admin-card" style={{ marginTop: 20 }}>
+        <div className="card-head">
+          <h2>Resumen por sede · este mes</h2>
+          <small style={{ color: '#6b7280' }}>Reservas e ingresos del mes actual</small>
+        </div>
+        <div className="admin-grid admin-grid--4 sede-summary">
+          {sedeSummary.map((s) => (
+            <div key={s.id} className="sede-card">
+              <div className="sede-card__name">{s.name}</div>
+              <small className="sede-card__region">{s.region}</small>
+              <div className="sede-card__metrics">
+                <div>
+                  <span>Reservas</span>
+                  <strong>{s.count}</strong>
+                </div>
+                <div>
+                  <span>Ingresos</span>
+                  <strong>{formatCOP(s.revenue)}</strong>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="admin-card" style={{ marginTop: 20 }}>
         <div className="card-head">
@@ -197,7 +240,7 @@ function Dashboard() {
                     </td>
                     <td>{formatCOP(b.total)}</td>
                     <td>
-                      <span className={`admin-badge admin-badge--${b.status}`}>{b.status}</span>
+                      <span className={`admin-badge admin-badge--${b.status}`}>{STATUS_LABELS[b.status] || b.status}</span>
                     </td>
                     <td>
                       {b.status === 'pending' && (
@@ -234,8 +277,16 @@ function Dashboard() {
         .kpi__value { font-size: 30px; font-weight: 700; color: #0a1628; }
         .kpi__value--warn { color: #d97706; }
         .kpi__value--ok { color: #047857; }
-        .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
         .card-head h2 { font-size: 16px; font-weight: 700; }
+        .sede-summary { gap: 12px; }
+        .sede-card { background: #f8f9fa; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+        .sede-card__name { font-size: 14px; font-weight: 700; color: #0a1628; }
+        .sede-card__region { font-size: 11px; color: #6b7280; letter-spacing: 0.3px; text-transform: uppercase; }
+        .sede-card__metrics { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; }
+        .sede-card__metrics > div { display: flex; flex-direction: column; }
+        .sede-card__metrics span { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #6b7280; }
+        .sede-card__metrics strong { font-size: 16px; color: #0a1628; }
       `}</style>
     </div>
   )

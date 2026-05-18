@@ -315,6 +315,8 @@
 
 .admin-badge--pending { background: #fef3c7; color: #92400e; }
 .admin-badge--confirmed { background: #d1fae5; color: #065f46; }
+.admin-badge--completed { background: #dbeafe; color: #1e40af; }
+.admin-badge--no_show { background: #f3e8ff; color: #6b21a8; }
 .admin-badge--cancelled { background: #fee2e2; color: #991b1b; }
 
 .admin-switch {

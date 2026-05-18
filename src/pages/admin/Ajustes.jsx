@@ -5,6 +5,7 @@ import { useDoc } from '../../hooks/useDoc'
 import { seedDemoData } from '../../services/seed'
 import { ALL_SLOT_TIMES, DEFAULT_CUPOS, SEDES, normalizeSlots } from '../../constants/sedes'
 import { LEGAL_DEFAULTS } from '../../constants/legalDefaults'
+import { DEFAULT_FAQ, DEFAULT_STATS } from '../../constants/siteContent'
 import {
   DEFAULT_BASE_SLOTS,
   buildDefaultSchedule,
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'contacto', label: 'Contacto' },
   { id: 'bold', label: 'Pasarela Bold' },
   { id: 'disponibilidad', label: 'Disponibilidad' },
+  { id: 'contenido', label: 'Contenido del sitio' },
   { id: 'legal', label: 'Textos legales' },
 ]
 
@@ -611,6 +613,178 @@ function DisponibilidadTab() {
   )
 }
 
+function ContenidoTab() {
+  const { data: stats } = useDoc('settings/stats')
+  const { data: faq } = useDoc('settings/faq')
+  const [statsDraft, setStatsDraft] = useState(DEFAULT_STATS)
+  const [faqDraft, setFaqDraft] = useState(DEFAULT_FAQ)
+  const [savingStats, setSavingStats] = useState(false)
+  const [savedStats, setSavedStats] = useState(false)
+  const [savingFaq, setSavingFaq] = useState(false)
+  const [savedFaq, setSavedFaq] = useState(false)
+
+  useEffect(() => {
+    if (stats) setStatsDraft({ ...DEFAULT_STATS, ...stats })
+  }, [stats])
+  useEffect(() => {
+    if (faq && Array.isArray(faq.items)) setFaqDraft(faq.items)
+  }, [faq])
+
+  const saveStats = async (e) => {
+    e.preventDefault()
+    setSavingStats(true)
+    setSavedStats(false)
+    try {
+      await setDoc(doc(db, 'settings', 'stats'), statsDraft, { merge: true })
+      setSavedStats(true)
+      setTimeout(() => setSavedStats(false), 2500)
+    } finally {
+      setSavingStats(false)
+    }
+  }
+
+  const saveFaq = async () => {
+    setSavingFaq(true)
+    setSavedFaq(false)
+    try {
+      const items = faqDraft
+        .map((it) => ({ q: (it.q || '').trim(), a: (it.a || '').trim() }))
+        .filter((it) => it.q && it.a)
+      await setDoc(doc(db, 'settings', 'faq'), { items }, { merge: false })
+      setFaqDraft(items)
+      setSavedFaq(true)
+      setTimeout(() => setSavedFaq(false), 2500)
+    } finally {
+      setSavingFaq(false)
+    }
+  }
+
+  const updateFaq = (idx, key, value) => {
+    setFaqDraft((prev) => prev.map((it, i) => (i === idx ? { ...it, [key]: value } : it)))
+  }
+  const addFaq = () => setFaqDraft((prev) => [...prev, { q: '', a: '' }])
+  const removeFaq = (idx) => setFaqDraft((prev) => prev.filter((_, i) => i !== idx))
+  const moveFaq = (idx, dir) => {
+    setFaqDraft((prev) => {
+      const next = [...prev]
+      const j = idx + dir
+      if (j < 0 || j >= next.length) return prev
+      ;[next[idx], next[j]] = [next[j], next[idx]]
+      return next
+    })
+  }
+
+  return (
+    <div>
+      <section style={{ marginBottom: 32, paddingBottom: 24, borderBottom: '1px solid #f3f4f6' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Stats del hero</h3>
+        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 14 }}>
+          Aparecen en la franja bajo el hero del sitio público.
+        </p>
+        <form onSubmit={saveStats}>
+          <div className="admin-grid admin-grid--2">
+            <div className="admin-field">
+              <label>Vuelos realizados (valor)</label>
+              <input className="admin-input" value={statsDraft.flights} onChange={(e) => setStatsDraft({ ...statsDraft, flights: e.target.value })} placeholder="+500" />
+            </div>
+            <div className="admin-field">
+              <label>Vuelos realizados (etiqueta)</label>
+              <input className="admin-input" value={statsDraft.flightsLabel} onChange={(e) => setStatsDraft({ ...statsDraft, flightsLabel: e.target.value })} />
+            </div>
+            <div className="admin-field">
+              <label>Calificación Google (valor)</label>
+              <input className="admin-input" value={statsDraft.rating} onChange={(e) => setStatsDraft({ ...statsDraft, rating: e.target.value })} placeholder="4.9" />
+            </div>
+            <div className="admin-field">
+              <label>Calificación Google (etiqueta)</label>
+              <input className="admin-input" value={statsDraft.ratingLabel} onChange={(e) => setStatsDraft({ ...statsDraft, ratingLabel: e.target.value })} />
+            </div>
+            <div className="admin-field">
+              <label>Años de experiencia (valor)</label>
+              <input className="admin-input" value={statsDraft.years} onChange={(e) => setStatsDraft({ ...statsDraft, years: e.target.value })} placeholder="8" />
+            </div>
+            <div className="admin-field">
+              <label>Años de experiencia (etiqueta)</label>
+              <input className="admin-input" value={statsDraft.yearsLabel} onChange={(e) => setStatsDraft({ ...statsDraft, yearsLabel: e.target.value })} />
+            </div>
+            <div className="admin-field">
+              <label>Sedes (valor)</label>
+              <input className="admin-input" value={statsDraft.sedes} onChange={(e) => setStatsDraft({ ...statsDraft, sedes: e.target.value })} placeholder="4" />
+            </div>
+            <div className="admin-field">
+              <label>Sedes (etiqueta)</label>
+              <input className="admin-input" value={statsDraft.sedesLabel} onChange={(e) => setStatsDraft({ ...statsDraft, sedesLabel: e.target.value })} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button type="submit" className="admin-btn" disabled={savingStats}>
+              {savingStats ? 'Guardando…' : 'Guardar stats'}
+            </button>
+            {savedStats && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Preguntas frecuentes</h3>
+            <p style={{ color: '#6b7280', fontSize: 13 }}>
+              Aparecen en la sección FAQ del sitio público.
+            </p>
+          </div>
+          <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" onClick={addFaq}>
+            + Agregar pregunta
+          </button>
+        </div>
+
+        {faqDraft.length === 0 && (
+          <p style={{ color: '#6b7280', fontSize: 13 }}>
+            Sin preguntas. Pulsa "Agregar pregunta" para empezar.
+          </p>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {faqDraft.map((it, idx) => (
+            <div key={idx} className="faq-edit">
+              <div className="faq-edit__head">
+                <span className="faq-edit__num">#{idx + 1}</span>
+                <div className="faq-edit__actions">
+                  <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" disabled={idx === 0} onClick={() => moveFaq(idx, -1)}>↑</button>
+                  <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" disabled={idx === faqDraft.length - 1} onClick={() => moveFaq(idx, 1)}>↓</button>
+                  <button type="button" className="admin-btn admin-btn--danger admin-btn--sm" onClick={() => removeFaq(idx)}>Quitar</button>
+                </div>
+              </div>
+              <div className="admin-field" style={{ marginBottom: 8 }}>
+                <label>Pregunta</label>
+                <input className="admin-input" value={it.q} onChange={(e) => updateFaq(idx, 'q', e.target.value)} />
+              </div>
+              <div className="admin-field" style={{ marginBottom: 0 }}>
+                <label>Respuesta</label>
+                <textarea className="admin-textarea" rows={3} value={it.a} onChange={(e) => updateFaq(idx, 'a', e.target.value)} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+          <button type="button" className="admin-btn" onClick={saveFaq} disabled={savingFaq}>
+            {savingFaq ? 'Guardando…' : 'Guardar FAQ'}
+          </button>
+          {savedFaq && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+        </div>
+      </section>
+
+      <style>{`
+        .faq-edit { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
+        .faq-edit__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .faq-edit__num { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #6b7280; }
+        .faq-edit__actions { display: flex; gap: 6px; }
+      `}</style>
+    </div>
+  )
+}
+
 function LegalTab() {
   const { data: legal } = useDoc('settings/legal')
   const [draft, setDraft] = useState(LEGAL_DEFAULTS)
@@ -717,6 +891,7 @@ function Ajustes() {
         {tab === 'contacto' && <ContactoTab />}
         {tab === 'bold' && <BoldTab />}
         {tab === 'disponibilidad' && <DisponibilidadTab />}
+        {tab === 'contenido' && <ContenidoTab />}
         {tab === 'legal' && <LegalTab />}
       </div>
 
