@@ -252,6 +252,7 @@ function Booking() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const timeColRef = useRef(null)
+  const boldMountRef = useRef(null)
   const [step, setStep] = useState(0)
   const [selectedService, setSelectedService] = useState(null)
   const initialSede = searchParams.get('sede') && SEDE_BY_ID[searchParams.get('sede')]
@@ -264,14 +265,33 @@ function Booking() {
   const [client, setClient] = useState({ name: '', email: '', phone: '' })
   const [paymentType, setPaymentType] = useState('full') // 'full' | 'partial'
   const [submitting, setSubmitting] = useState(false)
-  const [bookingId, setBookingId] = useState(null)
+  // Si Bold nos redirige a /reservar?ref=<orderId>, ese orderId es nuestro bookingId.
+  // Cargamos directo el estado "esperando confirmación" del webhook.
+  const refFromUrl = searchParams.get('ref') || ''
+  const [bookingId, setBookingId] = useState(refFromUrl || null)
   const [submitError, setSubmitError] = useState('')
+  // Flujo Bold: idle (wizard normal) → preparing (callable in flight) →
+  // mounted (botón Bold listo, esperando que el usuario pague) → error.
+  const [boldFlow, setBoldFlow] = useState(refFromUrl ? 'mounted' : 'idle')
+  const [boldError, setBoldError] = useState('')
 
   const { data: services } = useCollection('services', [where('active', '==', true)])
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const { data: settingsGeneral } = useDoc('settings/general')
-  const { data: settingsBold } = useDoc('settings/bold')
+  // Nota: NO leemos settings/bold aquí. Esa colección es admin-only
+  // (contiene secretKey). El flag público está en settings/general.boldActive.
   const { data: schedule, loading: scheduleLoading } = useDoc('settings/schedule')
+  // Suscripción al doc de la reserva en curso. Cuando el webhook de Bold
+  // escriba paymentStatus='paid' / status='confirmed', este hook detecta
+  // el cambio y la UI salta automáticamente a la pantalla de confirmación.
+  const { data: bookingDoc, loading: bookingLoading } = useDoc(
+    bookingId ? `bookings/${bookingId}` : null,
+  )
+
+  const isPaid = bookingDoc?.paymentStatus === 'paid' || bookingDoc?.status === 'confirmed'
+  const isDeclined = bookingDoc?.paymentStatus === 'declined' || bookingDoc?.paymentStatus === 'voided'
+  const isWhatsAppFlow = bookingDoc?.paymentMethod === 'whatsapp'
+  const isBoldFlow = bookingDoc?.paymentMethod === 'bold' || (!!refFromUrl)
 
   // Preselección de servicio desde la URL (?service=ID). Si llegamos
   // de una card de Servicios, saltamos directo al paso 1.
@@ -364,18 +384,70 @@ function Booking() {
     }
   }
 
+  // Inicia el flujo Bold. Solo crea la reserva (status: 'pending') y
+  // pasa a estado 'preparing'. El callable + montaje del botón ocurren
+  // en el useEffect de más abajo, una vez React renderizó el contenedor
+  // boldMountRef. La pantalla de "confirmada" NO se muestra aquí —
+  // espera a que el webhook escriba paymentStatus='paid' en Firestore.
   const handleBold = async () => {
-    const id = bookingId || (await submitBooking('bold'))
-    if (!id) return
-    try {
-      await startBoldCheckout({
-        booking: { ...buildBookingPayload('bold'), id, total: amountPaid },
-        publicKey: settingsBold?.publicKey,
-      })
-    } catch (e) {
-      console.error(e)
-      setSubmitError(e.message || 'No se pudo iniciar el pago online.')
+    setBoldError('')
+    setSubmitError('')
+    let id = bookingId
+    if (!id) {
+      id = await submitBooking('bold')
+      if (!id) return // submitError ya se seteó
     }
+    setBoldFlow('preparing')
+  }
+
+  // Cuando boldFlow pasa a 'preparing', el sub-pane "Completa tu pago"
+  // se renderiza y boldMountRef.current existe. Aquí llamamos al callable
+  // y montamos el botón Bold dentro de ese contenedor (no en document.body).
+  //
+  // IMPORTANTE: incluir `bookingDoc` en deps. En la primera transición
+  // boldFlow:'idle'→'preparing', `bookingDoc` aún está null (useDoc
+  // todavía cargando) y el guard de render muestra "Verificando…" en vez
+  // del sub-pane, así que el ref no existe todavía. Cuando llega el
+  // snapshot y bookingDoc se llena, este effect se re-ejecuta con el ref
+  // ya montado. La guarda interna `if (boldFlow !== 'preparing')` evita
+  // doble ejecución después de pasar a 'mounted'.
+  useEffect(() => {
+    if (boldFlow !== 'preparing' || !bookingId) return
+    const target = boldMountRef.current
+    if (!target) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        await startBoldCheckout({
+          booking: { ...buildBookingPayload('bold'), id: bookingId, total: amountPaid },
+          mountEl: target,
+        })
+        if (!cancelled) setBoldFlow('mounted')
+      } catch (e) {
+        if (cancelled) return
+        console.error(e)
+        setBoldError(e?.message || 'No se pudo iniciar el pago online.')
+        setBoldFlow('error')
+      }
+    })()
+    return () => { cancelled = true }
+    // buildBookingPayload depende de selectedService/sedeId/etc; el contrato
+    // de re-ejecución es: dispara cuando boldFlow, bookingId o bookingDoc
+    // cambien (este último es el que destraba el ref).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boldFlow, bookingId, bookingDoc])
+
+  const retryBold = () => {
+    setBoldError('')
+    setBoldFlow('preparing')
+  }
+
+  const cancelBoldAndBack = () => {
+    setBoldError('')
+    setBoldFlow('idle')
+    setBookingId(null)
+    // limpiar el ref param de la URL si llegamos por redirect
+    if (refFromUrl) navigate('/reservar', { replace: true })
   }
 
   const handleWhatsApp = async () => {
@@ -389,7 +461,26 @@ function Booking() {
     window.open(wa, '_blank', 'noopener')
   }
 
-  if (bookingId && step === 4) {
+  // ==========================================================
+  // Renders condicionales post-creación de reserva
+  // ==========================================================
+
+  // Mientras llega el snapshot inicial del doc (refresco por redirect,
+  // por ejemplo), un placeholder corto.
+  if (bookingId && bookingLoading && !bookingDoc) {
+    return (
+      <section className="booking confirm">
+        <div className="container confirm__inner">
+          <p className="confirm__sub">Verificando tu reserva…</p>
+        </div>
+      </section>
+    )
+  }
+
+  // CASO 1 — WhatsApp: la reserva queda en 'pending' y el cliente coordina
+  // por chat. Se muestra "Reserva registrada" inmediatamente porque ese
+  // canal no requiere pago digital.
+  if (bookingId && bookingDoc && isWhatsAppFlow) {
     return (
       <section className="booking confirm">
         <div className="container confirm__inner">
@@ -397,28 +488,131 @@ function Booking() {
           <h1 className="confirm__title">¡Reserva registrada!</h1>
           <p className="confirm__sub">
             Tu número de reserva es <strong>{bookingId.slice(0, 8).toUpperCase()}</strong>.
-            Te confirmaremos por WhatsApp o email en menos de 24 horas.
+            Te confirmaremos por WhatsApp en menos de 24 horas.
           </p>
           <div className="confirm__summary">
-            <div><span>Servicio</span><strong>{selectedService?.name}</strong></div>
-            <div><span>Sede</span><strong>{SEDE_BY_ID[sedeId]?.name}</strong></div>
-            <div><span>Fecha</span><strong>{date} · {time}</strong></div>
-            <div><span>Total reserva</span><strong>{formatCOP(total)}</strong></div>
-            <div><span>{paymentType === 'partial' ? 'Pagado (anticipo)' : 'Pagado'}</span><strong>{formatCOP(amountPaid)}</strong></div>
-            {paymentType === 'partial' && (
-              <div><span>Saldo (día del vuelo)</span><strong>{formatCOP(total - amountPaid)}</strong></div>
-            )}
+            <div><span>Servicio</span><strong>{bookingDoc.serviceName}</strong></div>
+            <div><span>Sede</span><strong>{bookingDoc.sedeName}</strong></div>
+            <div><span>Fecha</span><strong>{bookingDoc.date} · {bookingDoc.time}</strong></div>
+            <div><span>Total reserva</span><strong>{formatCOP(bookingDoc.total)}</strong></div>
           </div>
           <div className="confirm__actions">
             <Link to="/" className="btn btn--primary">Volver al inicio</Link>
-            <button
-              type="button"
-              className="btn btn--outline confirm__again"
-              onClick={() => navigate(0)}
-            >
+            <button type="button" className="btn btn--outline confirm__again" onClick={() => navigate(0)}>
               Hacer otra reserva
             </button>
           </div>
+        </div>
+      </section>
+    )
+  }
+
+  // CASO 2 — Bold pagado: el webhook escribió paymentStatus='paid' /
+  // status='confirmed'. La UI reacciona al cambio en Firestore.
+  if (bookingId && bookingDoc && isBoldFlow && isPaid) {
+    return (
+      <section className="booking confirm">
+        <div className="container confirm__inner">
+          <div className="confirm__icon" aria-hidden="true">✓</div>
+          <h1 className="confirm__title">¡Pago confirmado!</h1>
+          <p className="confirm__sub">
+            Tu reserva <strong>{bookingId.slice(0, 8).toUpperCase()}</strong> está
+            confirmada. Te enviaremos los detalles del vuelo por WhatsApp.
+          </p>
+          <div className="confirm__summary">
+            <div><span>Servicio</span><strong>{bookingDoc.serviceName}</strong></div>
+            <div><span>Sede</span><strong>{bookingDoc.sedeName}</strong></div>
+            <div><span>Fecha</span><strong>{bookingDoc.date} · {bookingDoc.time}</strong></div>
+            <div><span>Pagado</span><strong>{formatCOP(bookingDoc.amountPaid ?? bookingDoc.total)}</strong></div>
+          </div>
+          <div className="confirm__actions">
+            <Link to="/" className="btn btn--primary">Volver al inicio</Link>
+            <button type="button" className="btn btn--outline confirm__again" onClick={() => navigate(0)}>
+              Hacer otra reserva
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // CASO 3 — Bold rechazado/anulado: el webhook reportó declined/voided.
+  // Damos opción de reintentar (genera nueva orden, reusa la misma reserva).
+  if (bookingId && bookingDoc && isBoldFlow && isDeclined) {
+    return (
+      <section className="booking confirm">
+        <div className="container confirm__inner">
+          <div className="confirm__icon confirm__icon--warn" aria-hidden="true">!</div>
+          <h1 className="confirm__title">Pago no completado</h1>
+          <p className="confirm__sub">
+            Bold reportó que tu pago fue {bookingDoc.paymentStatus === 'voided' ? 'anulado' : 'rechazado'}.
+            Puedes intentar de nuevo o pagar por WhatsApp.
+          </p>
+          <div className="confirm__actions">
+            <button type="button" className="btn btn--primary" onClick={retryBold}>
+              Reintentar pago con Bold
+            </button>
+            <button type="button" className="btn btn--outline" onClick={cancelBoldAndBack}>
+              Volver
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // CASO 4 — Bold pendiente: la reserva existe en 'pending' y aún no llegó
+  // confirmación del webhook. Mostramos el botón de Bold y un mensaje de
+  // espera. Cuando el webhook escriba 'paid', el render se va al CASO 2
+  // automáticamente porque bookingDoc se actualiza por onSnapshot.
+  if (bookingId && bookingDoc && isBoldFlow && !isPaid && !isDeclined) {
+    return (
+      <section className="booking confirm">
+        <div className="container confirm__inner">
+          <p className="section-eyebrow">Paso final</p>
+          <h1 className="confirm__title confirm__title--sm">Completa tu pago</h1>
+          <p className="confirm__sub">
+            Tu reserva <strong>{bookingId.slice(0, 8).toUpperCase()}</strong> está
+            apartada. Pulsa el botón de Bold para abrir el checkout seguro y
+            completar el pago.
+          </p>
+
+          <div className="confirm__summary">
+            <div><span>Servicio</span><strong>{bookingDoc.serviceName}</strong></div>
+            <div><span>Sede</span><strong>{bookingDoc.sedeName}</strong></div>
+            <div><span>Fecha</span><strong>{bookingDoc.date} · {bookingDoc.time}</strong></div>
+            <div><span>A pagar</span><strong>{formatCOP(bookingDoc.amountPaid ?? bookingDoc.total)}</strong></div>
+          </div>
+
+          {boldFlow === 'error' ? (
+            <div className="bold-flow-error" role="alert">
+              <p>{boldError || 'No se pudo iniciar el pago online.'}</p>
+              <div className="confirm__actions">
+                <button type="button" className="btn btn--primary" onClick={retryBold}>
+                  Intentar de nuevo
+                </button>
+                <button type="button" className="btn btn--outline" onClick={cancelBoldAndBack}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="bold-flow-mount" ref={boldMountRef}>
+                {boldFlow === 'preparing' && (
+                  <p className="bold-flow-loading">Preparando botón de pago seguro…</p>
+                )}
+              </div>
+              <p className="bold-flow-hint">
+                {boldFlow === 'mounted'
+                  ? 'Pulsa el botón de Bold para abrir el checkout y completar tu pago. Esta pantalla se actualiza sola cuando Bold confirme el pago.'
+                  : 'Un momento mientras conectamos con Bold…'}
+              </p>
+              <button type="button" className="btn btn--outline" onClick={cancelBoldAndBack}>
+                Cancelar
+              </button>
+            </>
+          )}
         </div>
       </section>
     )
@@ -656,7 +850,11 @@ function Booking() {
 
               <h3 className="step-pane__sub">Método de pago</h3>
               <div className="pay-options">
-                {settingsBold?.active && (
+                {/* boldActive vive en settings/general (lectura pública).
+                    No leemos settings/bold directamente porque esa colección
+                    es admin-only por contener la secretKey. Un visitante sin
+                    sesión no veía este botón antes — esto lo arregla. */}
+                {settingsGeneral?.boldActive && (
                   <button
                     type="button"
                     className="btn btn--primary pay-btn"

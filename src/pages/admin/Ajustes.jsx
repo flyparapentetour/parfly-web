@@ -16,6 +16,7 @@ import {
 import { useMutation } from '../../hooks/useMutation'
 import { useToast } from '../../components/admin/Toast'
 import { useConfirm } from '../../components/admin/ConfirmModal'
+import { BOLD_WEBHOOK_URL } from '../../constants/bold'
 
 const TABS = [
   { id: 'contacto', label: 'Contacto' },
@@ -90,10 +91,12 @@ function ContactoTab() {
 
 function BoldTab() {
   const { data: bold } = useDoc('settings/bold')
+  const toast = useToast()
   const [draft, setDraft] = useState({ publicKey: '', secretKey: '', active: false })
   const [showSecret, setShowSecret] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (bold) {
@@ -105,12 +108,24 @@ function BoldTab() {
     }
   }, [bold])
 
+  const isActive = draft.active && draft.publicKey
+
   const save = async (e) => {
     e.preventDefault()
     setSaving(true)
     setSaved(false)
     try {
       await setDoc(doc(db, 'settings', 'bold'), draft, { merge: true })
+      // Reflejamos el estado activo en un flag PÚBLICO (settings/general
+      // es de lectura abierta) para que el frontend del visitante no
+      // autenticado pueda saber si la pasarela está activa sin necesidad
+      // de leer settings/bold (que sigue admin-only por contener la
+      // secretKey).
+      await setDoc(
+        doc(db, 'settings', 'general'),
+        { boldActive: !!isActive },
+        { merge: true },
+      )
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } finally {
@@ -118,21 +133,19 @@ function BoldTab() {
     }
   }
 
-  const isActive = draft.active && draft.publicKey
+  const copyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(BOLD_WEBHOOK_URL)
+      setCopied(true)
+      toast.success('URL del webhook copiada')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (e) {
+      toast.error('No se pudo copiar — selecciona y copia manualmente')
+    }
+  }
 
   return (
     <form onSubmit={save}>
-      <div className="bold-banner" role="alert">
-        <strong>🚧 Pasarela en construcción</strong>
-        <p>
-          La integración con Bold requiere una Cloud Function que firme cada
-          transacción con la llave secreta. Mientras la función no esté
-          desplegada, el botón "Pagar online" no funcionará aunque la
-          pasarela esté activa. Los clientes pueden seguir pagando por
-          WhatsApp con normalidad.
-        </p>
-      </div>
-
       <div className="bold-status" style={{ borderColor: isActive ? '#10b981' : '#ef4444' }}>
         <span className="bold-status__dot" style={{ background: isActive ? '#10b981' : '#ef4444' }} />
         <strong>{isActive ? 'ACTIVA' : 'INACTIVA'}</strong>
@@ -171,6 +184,40 @@ function BoldTab() {
         desde el backend (Cloud Function) para firmar la transacción.
       </div>
 
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 24, marginBottom: 10 }}>
+        Conecta el webhook con tu cuenta Bold
+      </h3>
+      <div className="bold-webhook">
+        <p className="bold-webhook__context">
+          Esto permite que Bold confirme automáticamente las reservas
+          pagadas en el sitio.
+        </p>
+        <div className="bold-webhook__url">
+          <code>{BOLD_WEBHOOK_URL}</code>
+          <button
+            type="button"
+            className="admin-btn admin-btn--ghost admin-btn--sm"
+            onClick={copyWebhook}
+          >
+            {copied ? '✓ Copiada' : 'Copiar'}
+          </button>
+        </div>
+        <ol className="bold-webhook__steps">
+          <li>Copia la URL de arriba con el botón <strong>Copiar</strong>.</li>
+          <li>Entra a tu panel de comercio Bold e inicia sesión.</li>
+          <li>
+            Ve al menú <strong>Integraciones</strong> y luego a la sección
+            {' '}<strong>Webhooks</strong>. Pulsa el botón
+            {' '}<strong>Configurar webhook</strong>.
+          </li>
+          <li>
+            Pega la URL en el campo <strong>URL de punto de conexión</strong>
+            {' '}y pulsa <strong>Crear webhook</strong>.
+          </li>
+        </ol>
+        <p className="bold-webhook__note">Configuración de una sola vez.</p>
+      </div>
+
       <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 24, marginBottom: 10 }}>Preview de pago</h3>
       <div className="bold-preview">
         <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Así verán los botones tus clientes:</p>
@@ -192,7 +239,14 @@ function BoldTab() {
       </div>
 
       <style>{`
-        .bold-banner { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; color: #7c2d12; }
+        .bold-webhook { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 18px; }
+        .bold-webhook__context { font-size: 13px; line-height: 1.55; color: #0c4a6e; margin-bottom: 12px; }
+        .bold-webhook__url { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .bold-webhook__url code { flex: 1; min-width: 0; padding: 8px 12px; background: #fff; border: 1px solid #e0f2fe; border-radius: 8px; font-family: 'Menlo', 'Consolas', monospace; font-size: 12px; color: #0a1628; word-break: break-all; user-select: all; }
+        .bold-webhook__steps { margin: 14px 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.55; color: #0c4a6e; }
+        .bold-webhook__steps li { padding-left: 4px; }
+        .bold-webhook__steps strong { color: #0a1628; }
+        .bold-webhook__note { font-size: 11.5px; color: #64748b; margin-top: 6px; font-style: italic; }
         .bold-banner strong { display: block; margin-bottom: 6px; font-size: 14px; }
         .bold-banner p { font-size: 13px; line-height: 1.55; }
         .bold-status { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 2px solid; border-radius: 10px; background: #fff; }

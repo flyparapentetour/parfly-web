@@ -37,10 +37,22 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Bookings: visitors can create their own; only admins read/update.
+    // Bookings: visitors can create their own y `get` el suyo (por ID
+    // conocido — el ID actúa como token de acceso, solo lo recibe quien
+    // creó la reserva). `list` y mutaciones siguen siendo admin-only.
+    // `paymentStatus`, `boldEventId`, `boldPaidAt` etc. los escribe SOLO la
+    // Cloud Function `boldWebhook` (admin SDK, bypassa estas rules).
     match /bookings/{id} {
       allow create;
-      allow read, update, delete: if isSignedIn();
+      allow get;
+      allow list, update, delete: if isSignedIn();
+    }
+
+    // boldEvents: store de idempotencia del webhook de Bold. Solo la
+    // Cloud Function lo toca (vía admin SDK). Cliente y admin no
+    // deben leer ni escribir aquí.
+    match /boldEvents/{id} {
+      allow read, write: if false;
     }
 
     // Default deny.

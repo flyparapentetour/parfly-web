@@ -1,0 +1,13 @@
+{
+  "name": "parfly-functions",
+  "description": "Cloud Functions for Fly Parapente Tour (parfly-prod). Bold integration: server-side integrity hash + payment webhook.",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.0.1"
+  }
+}
