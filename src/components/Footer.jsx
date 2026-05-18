@@ -52,6 +52,7 @@ function Footer() {
   const year = new Date().getFullYear()
   const { data: settings } = useDoc('settings/general')
   const whatsapp = settings?.whatsapp?.trim()
+  const email = settings?.email?.trim()
   return (
     <footer id="contacto" className="footer">
       <div className="container footer__inner">
@@ -99,7 +100,7 @@ function Footer() {
             <h4 className="footer__col-title">Contacto</h4>
             <ul>
               {whatsapp && <li>WhatsApp: {whatsapp}</li>}
-              <li>hola@flyparapente.tour</li>
+              {email && <li>{email}</li>}
             </ul>
           </div>
         </div>

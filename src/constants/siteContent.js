@@ -105,9 +105,13 @@ export const DEFAULT_SEDES = {
   },
 }
 
+// Importante: cada `value` se renderiza tal cual. Si quieres mostrar
+// "★" después del rating, escríbelo dentro del valor desde el editor
+// (Ajustes → Contenido → Stats). Antes el componente lo concatenaba y
+// duplicaba el símbolo si el admin lo agregaba.
 export const DEFAULT_STATS = {
   flights: '+500',
-  rating: '4.9',
+  rating: '4.9 ★',
   years: '8',
   sedes: '4',
   flightsLabel: 'Vuelos realizados',

@@ -97,11 +97,14 @@
   color: var(--color-bg);
 }
 .stepper__label {
-  display: none;
+  display: inline;
+  font-size: 10px;
+  line-height: 1.2;
 }
 @media (min-width: 640px) {
   .stepper__label {
     display: inline;
+    font-size: 11px;
   }
 }
 
@@ -585,6 +588,17 @@
   color: var(--color-text-soft);
   padding: 14px;
   font-size: 14px;
+}
+
+.booking__error {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  border: 1px solid #fca5a5;
 }
 
 /* Confirmation */

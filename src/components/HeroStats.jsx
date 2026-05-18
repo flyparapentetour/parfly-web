@@ -8,7 +8,7 @@ function HeroStats() {
 
   const items = [
     { value: s.flights, label: s.flightsLabel },
-    { value: `${s.rating}★`, label: s.ratingLabel },
+    { value: s.rating, label: s.ratingLabel },
     { value: s.years, label: s.yearsLabel },
     { value: s.sedes, label: s.sedesLabel },
   ]

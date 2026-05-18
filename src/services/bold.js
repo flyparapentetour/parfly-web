@@ -29,10 +29,13 @@ export async function startBoldCheckout({ booking, publicKey }) {
     '[Bold] Integración en construcción. Falta Cloud Function que firme la transacción.',
     { reference, amount, currency, publicKey },
   )
-  alert(
-    'La pasarela Bold está activa pero la firma server-side aún no está desplegada.\n\nPor ahora, usa "Pagar por WhatsApp" para coordinar el pago manualmente.\n\n(Detalles registrados en consola)',
+  // Lanzamos un error para que el llamador lo muestre vía toast del DS,
+  // en vez del alert() nativo. El mensaje incluye la salida sugerida.
+  const err = new Error(
+    'La pasarela Bold está activa pero la firma server-side aún no está desplegada. Usa "Pagar por WhatsApp" para coordinar el pago manualmente.',
   )
-  return { status: 'pending_backend', reference }
+  err.code = 'BOLD_BACKEND_PENDING'
+  throw err
 }
 
 export function buildWhatsAppPaymentMessage(booking, whatsappNumber) {

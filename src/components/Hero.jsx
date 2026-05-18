@@ -16,7 +16,7 @@ function Hero() {
       <div className="hero__grain" aria-hidden="true" />
 
       <div className="hero__content container">
-        <p className="hero__eyebrow">Colombia · 4 sedes · 12+ años</p>
+        <p className="hero__eyebrow">Parapente · Colombia</p>
 
         <h1 className="hero__title">
           <span className="hero__title-row"><span>Vuela sobre</span></span>

@@ -265,12 +265,25 @@ function Booking() {
   const [paymentType, setPaymentType] = useState('full') // 'full' | 'partial'
   const [submitting, setSubmitting] = useState(false)
   const [bookingId, setBookingId] = useState(null)
+  const [submitError, setSubmitError] = useState('')
 
   const { data: services } = useCollection('services', [where('active', '==', true)])
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const { data: settingsGeneral } = useDoc('settings/general')
   const { data: settingsBold } = useDoc('settings/bold')
   const { data: schedule, loading: scheduleLoading } = useDoc('settings/schedule')
+
+  // Preselección de servicio desde la URL (?service=ID). Si llegamos
+  // de una card de Servicios, saltamos directo al paso 1.
+  const initialServiceId = searchParams.get('service') || ''
+  useEffect(() => {
+    if (!initialServiceId || selectedService || services.length === 0) return
+    const match = services.find((s) => s.id === initialServiceId)
+    if (match) {
+      setSelectedService(match)
+      setStep((s) => (s === 0 ? 1 : s))
+    }
+  }, [initialServiceId, selectedService, services])
 
   const sedeEnabled = useMemo(
     () => (sedeId ? sedeBase(schedule, sedeId).enabled : false),
@@ -337,13 +350,14 @@ function Booking() {
 
   const submitBooking = async (paymentMethod) => {
     setSubmitting(true)
+    setSubmitError('')
     try {
       const id = await createBooking(buildBookingPayload(paymentMethod))
       setBookingId(id)
       return id
     } catch (e) {
       console.error(e)
-      alert('No se pudo registrar la reserva. Intenta de nuevo.')
+      setSubmitError('No se pudo registrar la reserva. Por favor intenta de nuevo o escríbenos por WhatsApp.')
       return null
     } finally {
       setSubmitting(false)
@@ -360,7 +374,7 @@ function Booking() {
       })
     } catch (e) {
       console.error(e)
-      alert(e.message)
+      setSubmitError(e.message || 'No se pudo iniciar el pago online.')
     }
   }
 
@@ -661,6 +675,12 @@ function Booking() {
                   Pagar {formatCOP(amountPaid)} por WhatsApp
                 </button>
               </div>
+
+              {submitError && (
+                <div className="booking__error" role="alert">
+                  {submitError}
+                </div>
+              )}
             </div>
           )}
         </div>

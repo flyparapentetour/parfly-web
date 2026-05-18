@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
+import { useMutation } from '../../hooks/useMutation'
+import { useToast } from '../../components/admin/Toast'
+import { useConfirm } from '../../components/admin/ConfirmModal'
 import { isCloudinaryConfigured, uploadImage } from '../../services/cloudinary'
 
 const EMPTY = { name: '', city: '', text: '', rating: 5, active: true, imageUrl: '', imageCloudinaryId: '' }
@@ -27,9 +30,11 @@ function Stars({ value, onChange }) {
 
 function Testimonios() {
   const { data: items, loading } = useCollection('testimonials')
+  const toast = useToast()
+  const confirm = useConfirm()
+  const { run: runSave, saving } = useMutation()
   const [draft, setDraft] = useState(EMPTY)
   const [editing, setEditing] = useState(null)
-  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
@@ -69,35 +74,49 @@ function Testimonios() {
   const save = async (e) => {
     e.preventDefault()
     if (!draft.name.trim() || !draft.text.trim()) return
-    setSaving(true)
-    try {
-      const payload = {
-        name: draft.name.trim(),
-        city: draft.city.trim(),
-        text: draft.text.trim(),
-        rating: Number(draft.rating) || 5,
-        active: draft.active,
-        imageUrl: draft.imageUrl || '',
-        imageCloudinaryId: draft.imageCloudinaryId || '',
-      }
-      if (editing) {
-        await updateDoc(doc(db, 'testimonials', editing), payload)
-      } else {
-        await addDoc(collection(db, 'testimonials'), { ...payload, createdAt: serverTimestamp() })
-      }
+    const payload = {
+      name: draft.name.trim(),
+      city: draft.city.trim(),
+      text: draft.text.trim(),
+      rating: Number(draft.rating) || 5,
+      active: draft.active,
+      imageUrl: draft.imageUrl || '',
+      imageCloudinaryId: draft.imageCloudinaryId || '',
+    }
+    const res = await runSave(async () => {
+      if (editing) await updateDoc(doc(db, 'testimonials', editing), payload)
+      else await addDoc(collection(db, 'testimonials'), { ...payload, createdAt: serverTimestamp() })
+    })
+    if (res.ok) {
+      toast.success(editing ? 'Testimonio actualizado' : 'Testimonio creado')
       cancel()
-    } finally {
-      setSaving(false)
+    } else {
+      toast.error(`No se pudo guardar: ${res.error?.message || 'error'}`)
     }
   }
 
   const toggle = async (t) => {
-    await updateDoc(doc(db, 'testimonials', t.id), { active: !t.active })
+    try {
+      await updateDoc(doc(db, 'testimonials', t.id), { active: !t.active })
+    } catch (e) {
+      toast.error(`No se pudo cambiar el estado: ${e.message}`)
+    }
   }
 
   const remove = async (t) => {
-    if (!confirm(`¿Eliminar el testimonio de ${t.name}?`)) return
-    await deleteDoc(doc(db, 'testimonials', t.id))
+    const ok = await confirm({
+      title: 'Eliminar testimonio',
+      message: `¿Eliminar el testimonio de ${t.name}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteDoc(doc(db, 'testimonials', t.id))
+      toast.success('Testimonio eliminado')
+    } catch (e) {
+      toast.error(`No se pudo eliminar: ${e.message}`)
+    }
   }
 
   return (

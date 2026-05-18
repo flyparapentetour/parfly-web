@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
+import { useMutation } from '../../hooks/useMutation'
+import { useToast } from '../../components/admin/Toast'
 import { formatCOP } from '../../constants/sedes'
 import { isCloudinaryConfigured, uploadImage } from '../../services/cloudinary'
 
@@ -17,9 +19,10 @@ const EMPTY = {
 
 function Servicios() {
   const { data: services, loading } = useCollection('services')
+  const toast = useToast()
+  const { run: runSave, saving } = useMutation()
   const [draft, setDraft] = useState(EMPTY)
   const [editing, setEditing] = useState(null)
-  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
@@ -59,30 +62,33 @@ function Servicios() {
   const save = async (e) => {
     e.preventDefault()
     if (!draft.name || draft.price === '') return
-    setSaving(true)
-    try {
-      const payload = {
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        price: Number(draft.price),
-        active: draft.active,
-        icon: draft.icon || 'parapente',
-        imageUrl: draft.imageUrl || '',
-        imageCloudinaryId: draft.imageCloudinaryId || '',
-      }
-      if (editing) {
-        await updateDoc(doc(db, 'services', editing), payload)
-      } else {
-        await addDoc(collection(db, 'services'), payload)
-      }
+    const payload = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      price: Number(draft.price),
+      active: draft.active,
+      icon: draft.icon || 'parapente',
+      imageUrl: draft.imageUrl || '',
+      imageCloudinaryId: draft.imageCloudinaryId || '',
+    }
+    const res = await runSave(async () => {
+      if (editing) await updateDoc(doc(db, 'services', editing), payload)
+      else await addDoc(collection(db, 'services'), payload)
+    })
+    if (res.ok) {
+      toast.success(editing ? 'Servicio actualizado' : 'Servicio creado')
       cancel()
-    } finally {
-      setSaving(false)
+    } else {
+      toast.error(`No se pudo guardar: ${res.error?.message || 'error'}`)
     }
   }
 
   const toggle = async (s) => {
-    await updateDoc(doc(db, 'services', s.id), { active: !s.active })
+    try {
+      await updateDoc(doc(db, 'services', s.id), { active: !s.active })
+    } catch (e) {
+      toast.error(`No se pudo cambiar el estado: ${e.message}`)
+    }
   }
 
   return (
@@ -97,11 +103,11 @@ function Servicios() {
         <form onSubmit={save}>
           <div className="admin-grid admin-grid--2">
             <div className="admin-field">
-              <label>Nombre</label>
+              <label>Nombre *</label>
               <input className="admin-input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required />
             </div>
             <div className="admin-field">
-              <label>Precio (COP)</label>
+              <label>Precio (COP) *</label>
               <input className="admin-input" type="number" min="0" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} required />
             </div>
           </div>

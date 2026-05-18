@@ -1,39 +1,13 @@
+import { orderBy } from 'firebase/firestore'
+import { useCollection } from '../hooks/useCollection'
 import './Gallery.css'
 
-const PHOTOS = [
-  {
-    src: 'https://images.unsplash.com/photo-1601024445121-e5b82f020549?w=900&q=80',
-    alt: 'Parapente sobre paisaje montañoso',
-    aspect: 'tall',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=900&q=80',
-    alt: 'Despegue de parapente',
-    aspect: 'wide',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1540979388789-6cee28a1cdc9?w=900&q=80',
-    alt: 'Vista aérea de montañas colombianas',
-    aspect: 'square',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&q=80',
-    alt: 'Cañón en Valle del Cauca',
-    aspect: 'wide',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1591017403286-fd8493524e1e?w=900&q=80',
-    alt: 'Vuelo con vistas a Antioquia',
-    aspect: 'tall',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1473773508845-188df298d2d1?w=900&q=80',
-    alt: 'Atardecer en vuelo',
-    aspect: 'square',
-  },
-]
+const ASPECTS = ['tall', 'wide', 'square', 'wide', 'tall', 'square']
 
 function Gallery() {
+  const { data: photos, loading } = useCollection('gallery', [orderBy('order', 'asc')])
+  const visible = photos.slice(0, 6)
+
   return (
     <section id="galeria" className="gallery">
       <div className="container">
@@ -45,22 +19,26 @@ function Gallery() {
           </p>
         </header>
 
-        <div className="gallery__grid">
-          {PHOTOS.map((p, i) => (
-            <figure
-              key={i}
-              className={`gallery__item gallery__item--${p.aspect}`}
-            >
-              <img src={p.src} alt={p.alt} loading="lazy" />
-            </figure>
-          ))}
-        </div>
-
-        <div className="gallery__actions">
-          <a href="#galeria-full" className="btn btn--primary">
-            Ver más fotos
-          </a>
-        </div>
+        {loading ? (
+          <p className="gallery__hint">Cargando galería…</p>
+        ) : visible.length === 0 ? (
+          <p className="gallery__hint">Galería próximamente. Pronto compartiremos fotos de nuestros vuelos.</p>
+        ) : (
+          <div className="gallery__grid">
+            {visible.map((p, i) => (
+              <figure
+                key={p.id}
+                className={`gallery__item gallery__item--${ASPECTS[i % ASPECTS.length]}`}
+              >
+                <img
+                  src={p.url}
+                  alt={p.alt || 'Vuelo en parapente'}
+                  loading="lazy"
+                />
+              </figure>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )

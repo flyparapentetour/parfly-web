@@ -27,10 +27,6 @@ function Stars({ count }) {
 function Testimonials() {
   const { data: items, loading } = useCollection('testimonials', [where('active', '==', true)])
 
-  if (loading || items.length === 0) {
-    return null
-  }
-
   return (
     <section className="testimonials">
       <div className="container">
@@ -39,6 +35,11 @@ function Testimonials() {
           <h2 className="section-title">Lo que dicen quienes vuelan</h2>
         </header>
 
+        {loading ? (
+          <p className="testimonials__hint">Cargando reseñas…</p>
+        ) : items.length === 0 ? (
+          <p className="testimonials__hint">Próximamente reseñas de clientes.</p>
+        ) : (
         <div className="testimonials__grid">
           {items.slice(0, 3).map((t) => (
             <article key={t.id} className="testimonial">
@@ -59,6 +60,7 @@ function Testimonials() {
             </article>
           ))}
         </div>
+        )}
       </div>
     </section>
   )

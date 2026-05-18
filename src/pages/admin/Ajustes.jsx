@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import { doc, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDoc } from '../../hooks/useDoc'
 import { seedDemoData } from '../../services/seed'
-import { ALL_SLOT_TIMES, DEFAULT_CUPOS, SEDES, normalizeSlots } from '../../constants/sedes'
+import { SEDES } from '../../constants/sedes'
 import { LEGAL_DEFAULTS } from '../../constants/legalDefaults'
 import {
   DEFAULT_CLASSES,
@@ -13,12 +13,9 @@ import {
   DEFAULT_SEDES,
   DEFAULT_STATS,
 } from '../../constants/siteContent'
-import {
-  DEFAULT_BASE_SLOTS,
-  buildDefaultSchedule,
-  sedeBase,
-  todayISO,
-} from '../../services/schedule'
+import { useMutation } from '../../hooks/useMutation'
+import { useToast } from '../../components/admin/Toast'
+import { useConfirm } from '../../components/admin/ConfirmModal'
 
 const TABS = [
   { id: 'contacto', label: 'Contacto' },
@@ -29,14 +26,15 @@ const TABS = [
 
 function ContactoTab() {
   const { data: settings } = useDoc('settings/general')
-  const [draft, setDraft] = useState({ whatsapp: '', instagram: '', tiktok: '', facebook: '' })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const toast = useToast()
+  const { run, saving, saved, error } = useMutation()
+  const [draft, setDraft] = useState({ whatsapp: '', email: '', instagram: '', tiktok: '', facebook: '' })
 
   useEffect(() => {
     if (settings) {
       setDraft({
         whatsapp: settings.whatsapp || '',
+        email: settings.email || '',
         instagram: settings.instagram || '',
         tiktok: settings.tiktok || '',
         facebook: settings.facebook || '',
@@ -46,22 +44,24 @@ function ContactoTab() {
 
   const save = async (e) => {
     e.preventDefault()
-    setSaving(true)
-    setSaved(false)
-    try {
-      await setDoc(doc(db, 'settings', 'general'), draft, { merge: true })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-    } finally {
-      setSaving(false)
-    }
+    const res = await run(() =>
+      setDoc(doc(db, 'settings', 'general'), draft, { merge: true }),
+    )
+    if (res.ok) toast.success('Contacto guardado')
+    else toast.error(`No se pudo guardar: ${res.error?.message || 'error desconocido'}`)
   }
 
   return (
     <form onSubmit={save}>
-      <div className="admin-field">
-        <label>WhatsApp (visible en la web y botón flotante)</label>
-        <input className="admin-input" value={draft.whatsapp} onChange={(e) => setDraft({ ...draft, whatsapp: e.target.value })} placeholder="+57 300 000 0000" />
+      <div className="admin-grid admin-grid--2">
+        <div className="admin-field">
+          <label>WhatsApp (web y botón flotante)</label>
+          <input className="admin-input" value={draft.whatsapp} onChange={(e) => setDraft({ ...draft, whatsapp: e.target.value })} placeholder="+57 300 000 0000" />
+        </div>
+        <div className="admin-field">
+          <label>Email de contacto</label>
+          <input className="admin-input" type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="hola@flyparapente.tour" />
+        </div>
       </div>
       <div className="admin-grid admin-grid--3">
         <div className="admin-field">
@@ -82,6 +82,7 @@ function ContactoTab() {
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </button>
         {saved && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+        {error && <span style={{ color: '#b91c1c', fontSize: 13 }}>Error: {error}</span>}
       </div>
     </form>
   )
@@ -121,6 +122,17 @@ function BoldTab() {
 
   return (
     <form onSubmit={save}>
+      <div className="bold-banner" role="alert">
+        <strong>🚧 Pasarela en construcción</strong>
+        <p>
+          La integración con Bold requiere una Cloud Function que firme cada
+          transacción con la llave secreta. Mientras la función no esté
+          desplegada, el botón "Pagar online" no funcionará aunque la
+          pasarela esté activa. Los clientes pueden seguir pagando por
+          WhatsApp con normalidad.
+        </p>
+      </div>
+
       <div className="bold-status" style={{ borderColor: isActive ? '#10b981' : '#ef4444' }}>
         <span className="bold-status__dot" style={{ background: isActive ? '#10b981' : '#ef4444' }} />
         <strong>{isActive ? 'ACTIVA' : 'INACTIVA'}</strong>
@@ -180,6 +192,9 @@ function BoldTab() {
       </div>
 
       <style>{`
+        .bold-banner { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; color: #7c2d12; }
+        .bold-banner strong { display: block; margin-bottom: 6px; font-size: 14px; }
+        .bold-banner p { font-size: 13px; line-height: 1.55; }
         .bold-status { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 2px solid; border-radius: 10px; background: #fff; }
         .bold-status strong { letter-spacing: 0.5px; }
         .bold-status small { color: #6b7280; }
@@ -191,433 +206,6 @@ function BoldTab() {
   )
 }
 
-function BaseScheduleEditor({ sedeId, schedule, onSaved }) {
-  // Local edit state, derived from the schedule doc but NOT tied to its
-  // realtime updates after the first load — otherwise toggles get clobbered
-  // every time onSnapshot fires while the user is editing.
-  const [enabled, setEnabled] = useState(true)
-  const [slotMap, setSlotMap] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [dirty, setDirty] = useState(false)
-
-  useEffect(() => {
-    const base = sedeBase(schedule, sedeId)
-    const next = {}
-    ALL_SLOT_TIMES.forEach((t) => { next[t] = 0 })
-    base.slots.forEach((s) => { next[s.time] = s.cupos })
-    setSlotMap(next)
-    setEnabled(base.enabled)
-    setDirty(false)
-  }, [sedeId, schedule])
-
-  const setCupos = (time, value) => {
-    const n = Math.max(0, Math.min(10, Number(value) || 0))
-    setSlotMap((m) => ({ ...m, [time]: n }))
-    setDirty(true)
-  }
-
-  const toggleSlot = (time) => {
-    setSlotMap((m) => ({ ...m, [time]: m[time] > 0 ? 0 : DEFAULT_CUPOS }))
-    setDirty(true)
-  }
-
-  const save = async () => {
-    setSaving(true)
-    setSaved(false)
-    try {
-      const slots = ALL_SLOT_TIMES
-        .filter((t) => slotMap[t] > 0)
-        .map((t) => ({ time: t, cupos: slotMap[t] }))
-      const payload = { [sedeId]: { enabled, slots } }
-      await setDoc(doc(db, 'settings', 'schedule'), payload, { merge: true })
-      setSaved(true)
-      setDirty(false)
-      onSaved?.()
-      setTimeout(() => setSaved(false), 2500)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div>
-      <label className="admin-switch" style={{ marginBottom: 14 }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => { setEnabled(e.target.checked); setDirty(true) }}
-        />
-        <span className="admin-switch__track" />
-        <span>{enabled ? 'Sede activa' : 'Sede inactiva (no se mostrará en reservas)'}</span>
-      </label>
-
-      <div className="slot-grid">
-        {ALL_SLOT_TIMES.map((t) => {
-          const cupos = slotMap[t] || 0
-          const on = cupos > 0
-          return (
-            <div key={t} className={`slot-row ${on ? 'slot-row--on' : ''}`}>
-              <button type="button" className="slot-pill" onClick={() => toggleSlot(t)} disabled={!enabled}>
-                {t}
-              </button>
-              <input
-                type="number"
-                min="0"
-                max="10"
-                className="slot-cupos"
-                value={cupos}
-                onChange={(e) => setCupos(t, e.target.value)}
-                disabled={!on || !enabled}
-                aria-label={`Cupos para ${t}`}
-              />
-            </div>
-          )
-        })}
-      </div>
-
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
-        <button type="button" className="admin-btn" onClick={save} disabled={saving || !dirty}>
-          {saving ? 'Guardando…' : 'Guardar horario base'}
-        </button>
-        {saved && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
-        {dirty && !saved && <span style={{ color: '#92400e', fontSize: 12 }}>Cambios sin guardar</span>}
-      </div>
-    </div>
-  )
-}
-
-function BlockedCalendar({ sedeId }) {
-  const [monthOffset, setMonthOffset] = useState(0)
-  const [blocked, setBlocked] = useState(new Set())
-  const [busy, setBusy] = useState(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-  const today = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [])
-  const view = useMemo(
-    () => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1),
-    [today, monthOffset],
-  )
-
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const snap = await getDocs(collection(db, `blocked/${sedeId}/dates`))
-        if (!alive) return
-        const next = new Set()
-        snap.forEach((d) => { if (d.data().blocked) next.add(d.id) })
-        setBlocked(next)
-      } catch (e) {
-        console.error('blocked fetch', e)
-      }
-    })()
-    return () => { alive = false }
-  }, [sedeId, reloadKey])
-
-  const firstDow = (new Date(view.getFullYear(), view.getMonth(), 1).getDay() + 6) % 7
-  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate()
-  const monthName = view.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
-
-  const fmt = (d) => {
-    const m = String(view.getMonth() + 1).padStart(2, '0')
-    const day = String(d).padStart(2, '0')
-    return `${view.getFullYear()}-${m}-${day}`
-  }
-
-  const toggle = async (iso) => {
-    setBusy(iso)
-    try {
-      const ref = doc(db, 'blocked', sedeId, 'dates', iso)
-      if (blocked.has(iso)) {
-        await deleteDoc(ref)
-        setBlocked((s) => { const n = new Set(s); n.delete(iso); return n })
-      } else {
-        await setDoc(ref, { blocked: true, reason: '' })
-        setBlocked((s) => new Set(s).add(iso))
-      }
-    } finally {
-      setBusy(null)
-      setReloadKey((k) => k + 1)
-    }
-  }
-
-  return (
-    <div>
-      <div className="block-cal__head">
-        <button
-          type="button"
-          className="admin-btn admin-btn--ghost admin-btn--sm"
-          onClick={() => setMonthOffset((m) => m - 1)}
-        >
-          ‹
-        </button>
-        <strong style={{ textTransform: 'capitalize' }}>{monthName}</strong>
-        <button
-          type="button"
-          className="admin-btn admin-btn--ghost admin-btn--sm"
-          onClick={() => setMonthOffset((m) => m + 1)}
-        >
-          ›
-        </button>
-      </div>
-      <div className="block-cal__dow">
-        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => <span key={`${d}-${i}`}>{d}</span>)}
-      </div>
-      <div className="block-cal__grid">
-        {Array.from({ length: firstDow }).map((_, i) => <span key={`pad-${i}`} />)}
-        {Array.from({ length: daysInMonth }).map((_, idx) => {
-          const d = idx + 1
-          const iso = fmt(d)
-          const dateObj = new Date(view.getFullYear(), view.getMonth(), d)
-          const isPast = dateObj < today
-          const isBlocked = blocked.has(iso)
-          return (
-            <button
-              key={iso}
-              type="button"
-              className={`block-cal__day ${isBlocked ? 'block-cal__day--blocked' : ''} ${isPast ? 'block-cal__day--past' : ''}`}
-              onClick={() => !isPast && toggle(iso)}
-              disabled={isPast || busy === iso}
-              title={isBlocked ? 'Bloqueada — click para desbloquear' : 'Disponible — click para bloquear'}
-            >
-              <span>{d}</span>
-              {isBlocked && <span className="block-cal__lock" aria-hidden="true">🔒</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function CustomDayEditor({ sedeId, baseSlotsForSede }) {
-  const [date, setDate] = useState('')
-  const [slotMap, setSlotMap] = useState({})
-  const [hasOverride, setHasOverride] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    if (!date) return
-    let alive = true
-    setLoading(true)
-    ;(async () => {
-      try {
-        const snap = await getDoc(doc(db, 'availability', sedeId, 'slots', date))
-        if (!alive) return
-        const source = snap.exists() ? normalizeSlots(snap.data().slots) : baseSlotsForSede
-        const next = {}
-        ALL_SLOT_TIMES.forEach((t) => { next[t] = 0 })
-        source.forEach((s) => { next[s.time] = s.cupos })
-        setSlotMap(next)
-        setHasOverride(snap.exists())
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-    return () => { alive = false }
-  }, [sedeId, date, baseSlotsForSede])
-
-  const setCupos = (time, v) => {
-    const n = Math.max(0, Math.min(10, Number(v) || 0))
-    setSlotMap((m) => ({ ...m, [time]: n }))
-  }
-  const toggleSlot = (time) => {
-    setSlotMap((m) => ({ ...m, [time]: m[time] > 0 ? 0 : DEFAULT_CUPOS }))
-  }
-
-  const save = async () => {
-    setSaving(true)
-    setSaved(false)
-    try {
-      const slots = ALL_SLOT_TIMES.filter((t) => slotMap[t] > 0).map((t) => ({ time: t, cupos: slotMap[t] }))
-      await setDoc(doc(db, 'availability', sedeId, 'slots', date), { slots })
-      setHasOverride(true)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const clearOverride = async () => {
-    if (!confirm('¿Quitar la personalización y volver al horario base para este día?')) return
-    setSaving(true)
-    try {
-      await deleteDoc(doc(db, 'availability', sedeId, 'slots', date))
-      setHasOverride(false)
-      const next = {}
-      ALL_SLOT_TIMES.forEach((t) => { next[t] = 0 })
-      baseSlotsForSede.forEach((s) => { next[s.time] = s.cupos })
-      setSlotMap(next)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div>
-      <div className="admin-field" style={{ maxWidth: 240 }}>
-        <label>Fecha a personalizar</label>
-        <input
-          className="admin-input"
-          type="date"
-          min={todayISO()}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-      </div>
-
-      {date && !loading && (
-        <>
-          <p style={{ color: '#6b7280', fontSize: 12, marginBottom: 10 }}>
-            {hasOverride
-              ? 'Este día tiene una configuración personalizada.'
-              : 'Mostrando el horario base. Edita y guarda para crear una personalización.'}
-          </p>
-          <div className="slot-grid">
-            {ALL_SLOT_TIMES.map((t) => {
-              const cupos = slotMap[t] || 0
-              const on = cupos > 0
-              return (
-                <div key={t} className={`slot-row ${on ? 'slot-row--on' : ''}`}>
-                  <button type="button" className="slot-pill" onClick={() => toggleSlot(t)}>{t}</button>
-                  <input
-                    type="number" min="0" max="10"
-                    className="slot-cupos" value={cupos}
-                    onChange={(e) => setCupos(t, e.target.value)}
-                    disabled={!on}
-                  />
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-            <button type="button" className="admin-btn" onClick={save} disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar personalización'}
-            </button>
-            {hasOverride && (
-              <button type="button" className="admin-btn admin-btn--ghost" onClick={clearOverride} disabled={saving}>
-                Quitar personalización
-              </button>
-            )}
-            {saved && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function DisponibilidadTab() {
-  const [sedeId, setSedeId] = useState(SEDES[0].id)
-  const { data: schedule, loading } = useDoc('settings/schedule')
-  const [showCustom, setShowCustom] = useState(false)
-  const [bootstrapping, setBootstrapping] = useState(false)
-
-  // Auto-create the base schedule doc with defaults the first time it loads
-  // and the document doesn't exist yet.
-  useEffect(() => {
-    if (loading || schedule || bootstrapping) return
-    setBootstrapping(true)
-    ;(async () => {
-      try {
-        await setDoc(doc(db, 'settings', 'schedule'), buildDefaultSchedule())
-      } catch (e) {
-        console.error('bootstrap schedule', e)
-      } finally {
-        setBootstrapping(false)
-      }
-    })()
-  }, [loading, schedule, bootstrapping])
-
-  const baseSlotsForSede = useMemo(
-    () => sedeBase(schedule, sedeId).slots,
-    [schedule, sedeId],
-  )
-
-  return (
-    <div>
-      <div className="admin-field" style={{ maxWidth: 320, marginBottom: 18 }}>
-        <label>Sede</label>
-        <select className="admin-select" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
-          {SEDES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
-
-      <section className="dispo-section">
-        <h3 className="dispo-section__title">Horario base</h3>
-        <p className="dispo-section__lead">
-          Este horario aplica a todos los días futuros. Las fechas que no
-          quieras operar, bloquéalas en la sección de abajo.
-        </p>
-        {schedule
-          ? <BaseScheduleEditor sedeId={sedeId} schedule={schedule} />
-          : <p style={{ color: '#6b7280', fontSize: 13 }}>Inicializando horario…</p>}
-      </section>
-
-      <section className="dispo-section">
-        <h3 className="dispo-section__title">Bloquear fechas</h3>
-        <p className="dispo-section__lead">
-          Click sobre un día para bloquear o desbloquear. Los días bloqueados
-          no aparecerán en el calendario público.
-        </p>
-        <BlockedCalendar sedeId={sedeId} />
-      </section>
-
-      <section className="dispo-section">
-        <button
-          type="button"
-          className="admin-btn admin-btn--ghost"
-          onClick={() => setShowCustom((v) => !v)}
-        >
-          {showCustom ? '− Ocultar' : '+ Personalizar día específico'}
-        </button>
-        {showCustom && (
-          <div style={{ marginTop: 14 }}>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>
-              Solo úsalo si una fecha puntual tiene un horario distinto al base
-              (ej.: solo abre por la mañana).
-            </p>
-            <CustomDayEditor sedeId={sedeId} baseSlotsForSede={baseSlotsForSede} />
-          </div>
-        )}
-      </section>
-
-      <style>{`
-        .dispo-section { margin-bottom: 28px; padding-bottom: 22px; border-bottom: 1px solid #f3f4f6; }
-        .dispo-section:last-child { border-bottom: none; }
-        .dispo-section__title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-        .dispo-section__lead { color: #6b7280; font-size: 13px; margin-bottom: 14px; }
-        .slot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        @media (min-width: 640px) { .slot-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (min-width: 900px) { .slot-grid { grid-template-columns: repeat(5, 1fr); } }
-        .slot-row { display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 10px; background: #f8f9fa; border: 1px solid #e5e7eb; }
-        .slot-row--on { background: #fff; border-color: #ff6b2b; }
-        .slot-pill { flex: 1; padding: 10px; border-radius: 8px; border: 2px solid transparent; background: #fff; font-weight: 600; cursor: pointer; }
-        .slot-pill:disabled { opacity: 0.5; cursor: not-allowed; }
-        .slot-row--on .slot-pill { background: #ff6b2b; color: #fff; }
-        .slot-cupos { width: 56px; padding: 8px; border-radius: 6px; border: 1px solid #e5e7eb; text-align: center; font: inherit; }
-        .slot-cupos:disabled { background: #f3f4f6; color: #9ca3af; }
-
-        .block-cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .block-cal__dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 11px; font-weight: 700; color: #6b7280; letter-spacing: 1px; margin-bottom: 4px; }
-        .block-cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-        .block-cal__day { position: relative; aspect-ratio: 1; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: center; }
-        .block-cal__day:hover:not(:disabled) { border-color: #ff6b2b; }
-        .block-cal__day--past { background: #f9fafb; color: #d1d5db; cursor: not-allowed; }
-        .block-cal__day--blocked { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
-        .block-cal__lock { position: absolute; bottom: 2px; right: 4px; font-size: 10px; }
-      `}</style>
-    </div>
-  )
-}
 
 function HomeIntrosEditor() {
   const { data } = useDoc('settings/homeIntros')
@@ -1259,19 +847,28 @@ function LegalTab() {
 
 
 function Ajustes() {
+  const confirmDlg = useConfirm()
+  const toast = useToast()
   const [tab, setTab] = useState('contacto')
   const [seeding, setSeeding] = useState(false)
   const [seedResult, setSeedResult] = useState('')
 
   const handleSeed = async () => {
-    if (!confirm('¿Crear datos demo? No reemplaza datos existentes.')) return
+    const ok = await confirmDlg({
+      title: 'Sembrar datos demo',
+      message: '¿Crear datos demo? No reemplaza datos existentes.',
+      confirmLabel: 'Sembrar',
+    })
+    if (!ok) return
     setSeeding(true)
     try {
       const report = await seedDemoData()
       setSeedResult(report.join(' · '))
+      toast.success('Datos demo sembrados')
     } catch (e) {
       console.error(e)
       setSeedResult(`Error: ${e.message}`)
+      toast.error(`No se pudo sembrar: ${e.message}`)
     } finally {
       setSeeding(false)
     }

@@ -2,15 +2,18 @@ import { useState } from 'react'
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
+import { useMutation } from '../../hooks/useMutation'
+import { useToast } from '../../components/admin/Toast'
 import { formatCOP } from '../../constants/sedes'
 
 const EMPTY = { name: '', description: '', price: '', active: true }
 
 function Adicionales() {
   const { data: items, loading } = useCollection('additionals')
+  const toast = useToast()
+  const { run: runSave, saving } = useMutation()
   const [draft, setDraft] = useState(EMPTY)
   const [editing, setEditing] = useState(null)
-  const [saving, setSaving] = useState(false)
 
   const startEdit = (a) => {
     setEditing(a.id)
@@ -21,24 +24,30 @@ function Adicionales() {
   const save = async (e) => {
     e.preventDefault()
     if (!draft.name || draft.price === '') return
-    setSaving(true)
-    try {
-      const payload = {
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        price: Number(draft.price),
-        active: draft.active,
-      }
+    const payload = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      price: Number(draft.price),
+      active: draft.active,
+    }
+    const res = await runSave(async () => {
       if (editing) await updateDoc(doc(db, 'additionals', editing), payload)
       else await addDoc(collection(db, 'additionals'), payload)
+    })
+    if (res.ok) {
+      toast.success(editing ? 'Adicional actualizado' : 'Adicional creado')
       cancel()
-    } finally {
-      setSaving(false)
+    } else {
+      toast.error(`No se pudo guardar: ${res.error?.message || 'error'}`)
     }
   }
 
   const toggle = async (a) => {
-    await updateDoc(doc(db, 'additionals', a.id), { active: !a.active })
+    try {
+      await updateDoc(doc(db, 'additionals', a.id), { active: !a.active })
+    } catch (e) {
+      toast.error(`No se pudo cambiar el estado: ${e.message}`)
+    }
   }
 
   return (
@@ -53,11 +62,11 @@ function Adicionales() {
         <form onSubmit={save}>
           <div className="admin-grid admin-grid--2">
             <div className="admin-field">
-              <label>Nombre</label>
+              <label>Nombre *</label>
               <input className="admin-input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required />
             </div>
             <div className="admin-field">
-              <label>Precio (COP)</label>
+              <label>Precio (COP) *</label>
               <input className="admin-input" type="number" min="0" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} required />
             </div>
           </div>

@@ -6,16 +6,23 @@ import {
   doc,
   orderBy,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
+import { useToast } from '../../components/admin/Toast'
+import { useConfirm } from '../../components/admin/ConfirmModal'
 import { isCloudinaryConfigured, uploadImage } from '../../services/cloudinary'
 
 function Galeria() {
   const { data: photos, loading } = useCollection('gallery', [orderBy('order', 'asc')])
   const configured = isCloudinaryConfigured()
+  const toast = useToast()
+  const confirm = useConfirm()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [editingAlt, setEditingAlt] = useState(null)
+  const [altDraft, setAltDraft] = useState('')
 
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return
@@ -50,11 +57,36 @@ function Galeria() {
   }
 
   const remove = async (p) => {
-    if (!confirm('¿Eliminar esta foto de la galería?')) return
-    await deleteDoc(doc(db, 'gallery', p.id))
+    const ok = await confirm({
+      title: 'Eliminar foto',
+      message: 'La foto se quitará del sitio público de inmediato. (Nota: queda almacenada en Cloudinary; ver docs para limpieza completa.)',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await deleteDoc(doc(db, 'gallery', p.id))
+      toast.success('Foto eliminada')
+    } catch (e) {
+      toast.error(`No se pudo eliminar: ${e.message}`)
+    }
     // Cloudinary: el borrado server-side requiere firma con API secret —
     // se debe hacer desde una Cloud Function. Aquí solo desreferenciamos
     // la imagen de Firestore; la URL queda huérfana en Cloudinary.
+  }
+
+  const startEditAlt = (p) => {
+    setEditingAlt(p.id)
+    setAltDraft(p.alt || '')
+  }
+  const saveAlt = async (p) => {
+    try {
+      await updateDoc(doc(db, 'gallery', p.id), { alt: altDraft.trim() })
+      toast.success('Descripción guardada')
+      setEditingAlt(null)
+    } catch (e) {
+      toast.error(`No se pudo guardar: ${e.message}`)
+    }
   }
 
   return (
@@ -107,7 +139,7 @@ function Galeria() {
           <div className="gallery-grid">
             {photos.map((p) => (
               <figure key={p.id} className="gallery-tile">
-                <img src={p.url} alt="" loading="lazy" />
+                <img src={p.url} alt={p.alt || ''} loading="lazy" />
                 <button
                   type="button"
                   className="gallery-tile__del"
@@ -116,6 +148,30 @@ function Galeria() {
                 >
                   ×
                 </button>
+                <button
+                  type="button"
+                  className="gallery-tile__alt"
+                  aria-label="Editar descripción"
+                  title={p.alt || 'Sin descripción'}
+                  onClick={() => startEditAlt(p)}
+                >
+                  alt
+                </button>
+                {editingAlt === p.id && (
+                  <div className="gallery-tile__alt-edit" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      autoFocus
+                      className="admin-input"
+                      value={altDraft}
+                      onChange={(e) => setAltDraft(e.target.value)}
+                      placeholder="Vuelo en parapente sobre…"
+                    />
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => saveAlt(p)}>Guardar</button>
+                      <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setEditingAlt(null)}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
               </figure>
             ))}
           </div>
@@ -155,6 +211,31 @@ function Galeria() {
           cursor: pointer;
           font-size: 16px;
           line-height: 1;
+        }
+        .gallery-tile__alt {
+          position: absolute;
+          bottom: 6px;
+          left: 6px;
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: rgba(0,0,0,0.6);
+          color: #fff;
+          border: none;
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        .gallery-tile__alt-edit {
+          position: absolute;
+          left: 6px;
+          right: 6px;
+          bottom: 6px;
+          background: #fff;
+          padding: 8px;
+          border-radius: 8px;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.3);
         }
       `}</style>
     </div>

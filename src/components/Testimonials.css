@@ -9,6 +9,13 @@
   margin: 0 auto 48px;
 }
 
+.testimonials__hint {
+  text-align: center;
+  color: var(--color-text-soft);
+  padding: 32px 16px;
+  font-size: 15px;
+}
+
 .testimonials__grid {
   display: grid;
   grid-template-columns: 1fr;

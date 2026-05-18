@@ -49,7 +49,7 @@ function Services() {
                 <p className="service-card__desc">{s.description}</p>
                 <div className="service-card__foot">
                   <p className="service-card__price">{formatCOP(s.price)}</p>
-                  <Link to="/reservar" className="service-card__link">
+                  <Link to={`/reservar?service=${encodeURIComponent(s.id)}`} className="service-card__link">
                     Reservar
                   </Link>
                 </div>

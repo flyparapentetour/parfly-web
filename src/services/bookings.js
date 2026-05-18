@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { notifyAdminOfBooking } from './notifications'
+import { reportError } from './observability'
 
 export const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled']
 
@@ -24,20 +25,25 @@ export function isRevenueStatus(status) {
 }
 
 export async function createBooking(payload) {
-  const ref = await addDoc(collection(db, 'bookings'), {
-    ...payload,
-    status: payload.status || 'pending',
-    createdAt: serverTimestamp(),
-  })
-  // Fire-and-forget admin notification. Wrapped so EmailJS failures never
-  // break the booking creation. Skip for admin-created manual bookings —
-  // there's no point notifying the admin about a record they just typed in.
-  if (payload.source !== 'manual') {
-    notifyAdminOfBooking({ id: ref.id, ...payload }).catch((e) =>
-      console.error('notifyAdminOfBooking', e),
-    )
+  try {
+    const ref = await addDoc(collection(db, 'bookings'), {
+      ...payload,
+      status: payload.status || 'pending',
+      createdAt: serverTimestamp(),
+    })
+    // Fire-and-forget admin notification. Wrapped so EmailJS failures never
+    // break the booking creation. Skip for admin-created manual bookings —
+    // there's no point notifying the admin about a record they just typed in.
+    if (payload.source !== 'manual') {
+      notifyAdminOfBooking({ id: ref.id, ...payload }).catch((e) =>
+        console.error('notifyAdminOfBooking', e),
+      )
+    }
+    return ref.id
+  } catch (e) {
+    reportError(e, { where: 'createBooking', sede: payload.sede })
+    throw e
   }
-  return ref.id
 }
 
 export async function updateBookingStatus(id, status) {

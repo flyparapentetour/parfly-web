@@ -75,10 +75,15 @@ export async function seedDemoData({ force = false } = {}) {
     report.push(`testimonials: ${TESTIMONIALS_SEED.length}`)
   }
 
+  // Importante: NO sembrar un WhatsApp placeholder. Si quedara
+  // "+57 300 000 0000" en producción, los clientes intentarían
+  // contactar un número falso. El admin debe configurarlo en
+  // Ajustes → Contacto antes de exponer el sitio.
   batch.set(
     doc(db, 'settings', 'general'),
     {
-      whatsapp: '+57 300 000 0000',
+      whatsapp: '',
+      email: '',
       instagram: '',
       tiktok: '',
       facebook: '',

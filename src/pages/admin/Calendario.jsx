@@ -3,6 +3,8 @@ import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, setDoc } from 'fi
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
+import { useToast } from '../../components/admin/Toast'
+import { useConfirm } from '../../components/admin/ConfirmModal'
 import { updateBookingStatus } from '../../services/bookings'
 import {
   buildDefaultSchedule,
@@ -21,6 +23,7 @@ import {
 const monthKey = (year, monthIdx) => `${year}-${String(monthIdx + 1).padStart(2, '0')}`
 
 function BaseScheduleEditor({ sedeId, schedule }) {
+  const toast = useToast()
   const [enabled, setEnabled] = useState(true)
   const [slotMap, setSlotMap] = useState({})
   const [saving, setSaving] = useState(false)
@@ -57,7 +60,10 @@ function BaseScheduleEditor({ sedeId, schedule }) {
       await setDoc(doc(db, 'settings', 'schedule'), { [sedeId]: { enabled, slots } }, { merge: true })
       setSaved(true)
       setDirty(false)
+      toast.success('Horario base guardado')
       setTimeout(() => setSaved(false), 2200)
+    } catch (e) {
+      toast.error(`No se pudo guardar: ${e.message}`)
     } finally {
       setSaving(false)
     }
@@ -111,6 +117,8 @@ function BaseScheduleEditor({ sedeId, schedule }) {
 }
 
 function DayPanel({ sedeId, date, baseSlots, items, onClose, onBlockToggle, blocked, onRefreshOverride }) {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [override, setOverride] = useState(null)
   const [slotMap, setSlotMap] = useState({})
   const [editing, setEditing] = useState(false)
@@ -150,13 +158,21 @@ function DayPanel({ sedeId, date, baseSlots, items, onClose, onBlockToggle, bloc
       setOverride(slots)
       setEditing(false)
       onRefreshOverride?.()
+      toast.success('Día personalizado')
+    } catch (e) {
+      toast.error(`No se pudo guardar: ${e.message}`)
     } finally {
       setSaving(false)
     }
   }
 
   const clearOverride = async () => {
-    if (!confirm('¿Eliminar la personalización y volver al horario base?')) return
+    const ok = await confirm({
+      title: 'Quitar personalización',
+      message: '¿Eliminar la personalización y volver al horario base para este día?',
+      confirmLabel: 'Quitar',
+    })
+    if (!ok) return
     setSaving(true)
     try {
       await deleteDoc(doc(db, 'availability', sedeId, 'slots', date))
@@ -166,6 +182,9 @@ function DayPanel({ sedeId, date, baseSlots, items, onClose, onBlockToggle, bloc
       baseSlots.forEach((s) => { next[s.time] = s.cupos })
       setSlotMap(next)
       onRefreshOverride?.()
+      toast.success('Personalización eliminada')
+    } catch (e) {
+      toast.error(`No se pudo eliminar: ${e.message}`)
     } finally {
       setSaving(false)
     }
@@ -279,6 +298,7 @@ function DayPanel({ sedeId, date, baseSlots, items, onClose, onBlockToggle, bloc
 }
 
 function Calendario() {
+  const toast = useToast()
   const today = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -355,12 +375,26 @@ function Calendario() {
 
   const toggleBlock = async (iso) => {
     const ref = doc(db, 'blocked', sedeId, 'dates', iso)
-    if (blocked[iso]) {
-      await deleteDoc(ref)
-      setBlocked((b) => { const n = { ...b }; delete n[iso]; return n })
-    } else {
-      await setDoc(ref, { blocked: true, reason: '' })
-      setBlocked((b) => ({ ...b, [iso]: { reason: '' } }))
+    // Estado optimista: actualiza UI primero, revierte si Firestore falla.
+    const wasBlocked = !!blocked[iso]
+    setBlocked((b) => {
+      const n = { ...b }
+      if (wasBlocked) delete n[iso]
+      else n[iso] = { reason: '' }
+      return n
+    })
+    try {
+      if (wasBlocked) await deleteDoc(ref)
+      else await setDoc(ref, { blocked: true, reason: '' })
+    } catch (e) {
+      // Revertir el optimismo.
+      setBlocked((b) => {
+        const n = { ...b }
+        if (wasBlocked) n[iso] = { reason: '' }
+        else delete n[iso]
+        return n
+      })
+      toast.error(`No se pudo ${wasBlocked ? 'desbloquear' : 'bloquear'}: ${e.message}`)
     }
   }
 

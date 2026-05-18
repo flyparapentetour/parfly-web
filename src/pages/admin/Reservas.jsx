@@ -11,6 +11,7 @@ import {
 import { formatCOP, SEDES, SEDE_BY_ID } from '../../constants/sedes'
 import ManualBookingModal from '../../components/admin/ManualBookingModal'
 import ClientHistoryPanel from '../../components/admin/ClientHistoryPanel'
+import { useToast } from '../../components/admin/Toast'
 
 const PAGE_SIZE = 20
 
@@ -43,6 +44,7 @@ function buildReminderURL(b) {
 }
 
 function NotesField({ booking }) {
+  const toast = useToast()
   const [value, setValue] = useState(booking.notes || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -55,6 +57,8 @@ function NotesField({ booking }) {
       await updateBookingNotes(booking.id, value.trim())
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      toast.error(`No se pudo guardar la nota: ${e.message}`)
     } finally {
       setSaving(false)
     }
@@ -81,6 +85,7 @@ function NotesField({ booking }) {
 }
 
 function Reservas() {
+  const toast = useToast()
   const { data: bookings, loading } = useCollection('bookings', [orderBy('createdAt', 'desc')])
   const { data: services } = useCollection('services', [where('active', '==', true)])
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
@@ -219,7 +224,10 @@ function Reservas() {
                             <select
                               className="status-select"
                               value={b.status}
-                              onChange={(e) => updateBookingStatus(b.id, e.target.value)}
+                              onChange={(e) => {
+                                const next = e.target.value
+                                updateBookingStatus(b.id, next).catch((err) => toast.error(`No se pudo cambiar estado: ${err.message}`))
+                              }}
                               aria-label="Cambiar estado"
                             >
                               {BOOKING_STATUSES.map((s) => (

@@ -336,7 +336,7 @@ function Dashboard() {
                           <button
                             type="button"
                             className="admin-btn admin-btn--sm"
-                            onClick={() => updateBookingStatus(b.id, 'confirmed')}
+                            onClick={() => updateBookingStatus(b.id, 'confirmed').catch((e) => console.error(e))}
                           >
                             Confirmar
                           </button>
