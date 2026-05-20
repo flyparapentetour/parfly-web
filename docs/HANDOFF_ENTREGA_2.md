@@ -4,7 +4,7 @@
 **Proveedor:** Orbix Studio Lab
 **Fecha de entrega:** mayo 2026
 **Versión del sitio:** Entrega 2 · Pivot v2
-**Commit en `main`:** sustituye este placeholder con el SHA del commit que cierra la entrega.
+**Commit en `main`:** `db9391c` (squash merge de `feature/reserva-v2`, 14 archivos, +2024/-309 líneas).
 
 ---
 
