@@ -83,7 +83,7 @@ export async function startBoldCheckout({ booking, mountEl }) {
   script.setAttribute('data-integrity-signature', integritySignature)
   script.setAttribute(
     'data-redirection-url',
-    `${window.location.origin}/reservar?ref=${encodeURIComponent(orderId)}`,
+    `${window.location.origin}/reservar/wizard?ref=${encodeURIComponent(orderId)}`,
   )
 
   // Esperar al onload (o timeout/error) antes de retornar, para que el

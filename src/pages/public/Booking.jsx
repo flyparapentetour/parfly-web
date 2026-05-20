@@ -293,17 +293,26 @@ function Booking() {
   const isWhatsAppFlow = bookingDoc?.paymentMethod === 'whatsapp'
   const isBoldFlow = bookingDoc?.paymentMethod === 'bold' || (!!refFromUrl)
 
-  // Preselección de servicio desde la URL (?service=ID). Si llegamos
-  // de una card de Servicios, saltamos directo al paso 1.
+  // Preselección de servicio desde la URL.
+  //  - ?service=ID: enlace legacy (cards de Services.jsx).
+  //  - ?flow=experience|livegroup: viene del ServicePicker (PAR-02). Ambos
+  //    flows del pivot v2 montan sobre `vuelos-experience` (único servicio
+  //    activo). El flag de descuento Live Group lo aplica PAR-03 leyendo
+  //    `?flow=livegroup` directamente.
   const initialServiceId = searchParams.get('service') || ''
+  const flow = searchParams.get('flow') || ''
   useEffect(() => {
-    if (!initialServiceId || selectedService || services.length === 0) return
-    const match = services.find((s) => s.id === initialServiceId)
+    if (selectedService || services.length === 0) return
+    const targetId =
+      initialServiceId ||
+      (flow === 'experience' || flow === 'livegroup' ? 'vuelos-experience' : '')
+    if (!targetId) return
+    const match = services.find((s) => s.id === targetId)
     if (match) {
       setSelectedService(match)
       setStep((s) => (s === 0 ? 1 : s))
     }
-  }, [initialServiceId, selectedService, services])
+  }, [initialServiceId, flow, selectedService, services])
 
   const sedeEnabled = useMemo(
     () => (sedeId ? sedeBase(schedule, sedeId).enabled : false),
@@ -447,7 +456,7 @@ function Booking() {
     setBoldFlow('idle')
     setBookingId(null)
     // limpiar el ref param de la URL si llegamos por redirect
-    if (refFromUrl) navigate('/reservar', { replace: true })
+    if (refFromUrl) navigate('/reservar/wizard', { replace: true })
   }
 
   const handleWhatsApp = async () => {
