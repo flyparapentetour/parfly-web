@@ -800,6 +800,16 @@ function Booking() {
                   // el usuario vea el cargo real antes de seleccionar.
                   const qty = a.billingMode === 'per_person' ? numPeople : 1
                   const lineTotal = (a.price || 0) * qty
+                  // PAR-05: meta visible con el billingMode + cálculo vivo.
+                  //  - per_booking          → "$X · por reserva"
+                  //  - per_person, N=1      → "$X · por persona"
+                  //  - per_person, N>1      → "$X × N · por persona"
+                  // (El total grande arriba es siempre lineTotal.)
+                  const meta = a.billingMode === 'per_person'
+                    ? (numPeople > 1
+                        ? `${formatCOP(a.price)} × ${numPeople} · por persona`
+                        : `${formatCOP(a.price)} · por persona`)
+                    : `${formatCOP(a.price)} · por reserva`
                   return (
                     <button
                       type="button"
@@ -811,13 +821,11 @@ function Booking() {
                       <div className="addon__body">
                         <strong>{a.name}</strong>
                         <small>{a.description}</small>
-                        {a.billingMode === 'per_person' && (
-                          <small className="addon__rate">
-                            {formatCOP(a.price)} × {numPeople} pers.
-                          </small>
-                        )}
                       </div>
-                      <span className="addon__price">{formatCOP(lineTotal)}</span>
+                      <span className="addon__price-col">
+                        <span className="addon__price">{formatCOP(lineTotal)}</span>
+                        <small className="addon__meta">{meta}</small>
+                      </span>
                     </button>
                   )
                 })}
