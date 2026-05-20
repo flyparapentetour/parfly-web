@@ -637,12 +637,148 @@ function SedesEditor() {
 
 const CONTENT_SECTIONS = [
   { id: 'home', label: 'Home (textos)' },
+  { id: 'picker', label: 'Selector de servicios' },
   { id: 'included', label: '¿Qué incluye?' },
   { id: 'classes', label: 'Clases' },
   { id: 'sedes', label: 'Sedes' },
   { id: 'stats', label: 'Stats' },
   { id: 'faq', label: 'FAQ' },
 ]
+
+// PAR-09b: editor de settings/servicePicker (Pivot v2).
+// Persiste los textos y la imagen de las 3 cards que ve el visitante en
+// /reservar antes de entrar al wizard. La estructura está sembrada por
+// PAR-01 (scripts/par-01-seed.cjs:285) — aquí solo exponemos edición.
+const SERVICE_PICKER_DEFAULTS = {
+  experience: {
+    title: 'Vuelo Experience',
+    description: '20 min · acrobacias · video del instructor · certificado de vuelo. Sin experiencia previa.',
+    priceLabel: '$150.000',
+    image: '',
+  },
+  courses: {
+    title: 'Cursos de parapente',
+    description: 'Aprende a volar con instructores certificados. Programa personalizado por nivel — coordinamos contigo por WhatsApp.',
+    whatsappMessage: 'Hola, me interesan los cursos de parapente.',
+    image: '',
+  },
+  liveGroup: {
+    title: 'Live Group (8+ personas)',
+    description: 'Reserva para grupos de 8 o más. 30% OFF aplicado al subtotal de los vuelos.',
+    discountBadge: '−30% en vuelos',
+    image: '',
+  },
+}
+
+function ServicePickerEditor() {
+  const { data } = useDoc('settings/servicePicker')
+  const [draft, setDraft] = useState(SERVICE_PICKER_DEFAULTS)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (data) {
+      setDraft({
+        experience: { ...SERVICE_PICKER_DEFAULTS.experience, ...(data.experience || {}) },
+        courses: { ...SERVICE_PICKER_DEFAULTS.courses, ...(data.courses || {}) },
+        liveGroup: { ...SERVICE_PICKER_DEFAULTS.liveGroup, ...(data.liveGroup || {}) },
+      })
+    }
+  }, [data])
+
+  const setField = (card, key, value) =>
+    setDraft((d) => ({ ...d, [card]: { ...d[card], [key]: value } }))
+
+  const save = async (e) => {
+    e.preventDefault()
+    setSaving(true); setSaved(false)
+    try {
+      await setDoc(doc(db, 'settings', 'servicePicker'), draft, { merge: false })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={save}>
+      <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 14 }}>
+        Edita las 3 tarjetas que ve el visitante en <code>/reservar</code>{' '}
+        antes de entrar al wizard. La estructura del selector está fija
+        (no se pueden agregar o quitar tarjetas).
+      </p>
+
+      <div className="picker-card-edit">
+        <h3>Card 1 · Vuelo Experience</h3>
+        <p className="picker-card-edit__hint">Lleva al wizard con <code>?flow=experience</code> (1–7 personas).</p>
+        <div className="admin-grid admin-grid--2">
+          <div className="admin-field"><label>Título</label>
+            <input className="admin-input" value={draft.experience.title} onChange={(e) => setField('experience', 'title', e.target.value)} />
+          </div>
+          <div className="admin-field"><label>Etiqueta de precio</label>
+            <input className="admin-input" value={draft.experience.priceLabel} onChange={(e) => setField('experience', 'priceLabel', e.target.value)} placeholder="$150.000" />
+          </div>
+        </div>
+        <div className="admin-field"><label>Descripción</label>
+          <textarea className="admin-textarea" rows={2} value={draft.experience.description} onChange={(e) => setField('experience', 'description', e.target.value)} />
+        </div>
+        <div className="admin-field"><label>URL imagen (opcional)</label>
+          <input className="admin-input" value={draft.experience.image} onChange={(e) => setField('experience', 'image', e.target.value)} placeholder="https://…" />
+        </div>
+      </div>
+
+      <div className="picker-card-edit">
+        <h3>Card 2 · Cursos de parapente</h3>
+        <p className="picker-card-edit__hint">No reservable online — abre WhatsApp con el mensaje pre-armado.</p>
+        <div className="admin-field"><label>Título</label>
+          <input className="admin-input" value={draft.courses.title} onChange={(e) => setField('courses', 'title', e.target.value)} />
+        </div>
+        <div className="admin-field"><label>Descripción</label>
+          <textarea className="admin-textarea" rows={2} value={draft.courses.description} onChange={(e) => setField('courses', 'description', e.target.value)} />
+        </div>
+        <div className="admin-field"><label>Mensaje pre-armado de WhatsApp</label>
+          <input className="admin-input" value={draft.courses.whatsappMessage} onChange={(e) => setField('courses', 'whatsappMessage', e.target.value)} placeholder="Hola, me interesan los cursos…" />
+        </div>
+        <div className="admin-field"><label>URL imagen (opcional)</label>
+          <input className="admin-input" value={draft.courses.image} onChange={(e) => setField('courses', 'image', e.target.value)} placeholder="https://…" />
+        </div>
+      </div>
+
+      <div className="picker-card-edit">
+        <h3>Card 3 · Live Group (grupos de 8+)</h3>
+        <p className="picker-card-edit__hint">Lleva al wizard con <code>?flow=livegroup</code> · 30% OFF a vuelos.</p>
+        <div className="admin-grid admin-grid--2">
+          <div className="admin-field"><label>Título</label>
+            <input className="admin-input" value={draft.liveGroup.title} onChange={(e) => setField('liveGroup', 'title', e.target.value)} />
+          </div>
+          <div className="admin-field"><label>Texto del badge de descuento</label>
+            <input className="admin-input" value={draft.liveGroup.discountBadge} onChange={(e) => setField('liveGroup', 'discountBadge', e.target.value)} placeholder="−30% en vuelos" />
+          </div>
+        </div>
+        <div className="admin-field"><label>Descripción</label>
+          <textarea className="admin-textarea" rows={2} value={draft.liveGroup.description} onChange={(e) => setField('liveGroup', 'description', e.target.value)} />
+        </div>
+        <div className="admin-field"><label>URL imagen (opcional)</label>
+          <input className="admin-input" value={draft.liveGroup.image} onChange={(e) => setField('liveGroup', 'image', e.target.value)} placeholder="https://…" />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+        <button type="submit" className="admin-btn" disabled={saving}>
+          {saving ? 'Guardando…' : 'Guardar selector de servicios'}
+        </button>
+        {saved && <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+      </div>
+
+      <style>{`
+        .picker-card-edit { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+        .picker-card-edit h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: #0a1628; }
+        .picker-card-edit__hint { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+        .picker-card-edit__hint code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+      `}</style>
+    </form>
+  )
+}
 
 function ContenidoTab() {
   const [section, setSection] = useState('home')
@@ -825,6 +961,7 @@ function ContenidoTab() {
       </div>
 
       {section === 'home' && <HomeIntrosEditor />}
+      {section === 'picker' && <ServicePickerEditor />}
       {section === 'included' && <IncludedEditor />}
       {section === 'classes' && <ClassesEditor />}
       {section === 'sedes' && <SedesEditor />}
