@@ -5,7 +5,7 @@ import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
 import { db } from '../../firebase/config'
 import { createBooking } from '../../services/bookings'
-import { startBoldCheckout, buildWhatsAppPaymentMessage } from '../../services/bold'
+import { startBoldCheckout, buildTransferWhatsAppMessage } from '../../services/bold'
 import { resolveSlots, sedeBase, todayISO } from '../../services/schedule'
 import {
   SEDES,
@@ -236,6 +236,13 @@ function Booking() {
   const [searchParams] = useSearchParams()
   const timeColRef = useRef(null)
   const boldMountRef = useRef(null)
+  // PAR-07 (BTN-001 fix): guard de un solo disparo para el mount del
+  // botón Bold. El useEffect que monta el botón depende de bookingDoc
+  // (vía bookingDocReady) para saber cuándo aparece el ref del contenedor,
+  // pero NO queremos re-mountar cada vez que Firestore re-emite el doc
+  // (resolución de serverTimestamp, update del webhook, etc.). Este ref
+  // se resetea en retry/cancel/error para permitir reintentos limpios.
+  const boldMountedRef = useRef(false)
   const [step, setStep] = useState(0)
   const [selectedService, setSelectedService] = useState(null)
   const initialSede = searchParams.get('sede') && SEDE_BY_ID[searchParams.get('sede')]
@@ -251,7 +258,10 @@ function Booking() {
   // sólo controla visibilidad del texto.
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [termsModalOpen, setTermsModalOpen] = useState(false)
-  const [paymentType, setPaymentType] = useState('full') // 'full' | 'partial'
+  // PAR-07: paymentType ('full' | 'partial') se eliminó. El pivot v2 colapsa
+  // las 4 combinaciones de antes (full/partial × Bold/WhatsApp) en 2 opciones
+  // explícitas: Bold 100% o transferencia 50% (WhatsApp). El método elegido
+  // determina la cantidad sin que el usuario tenga que tildar nada extra.
   const [submitting, setSubmitting] = useState(false)
   // Si Bold nos redirige a /reservar?ref=<orderId>, ese orderId es nuestro bookingId.
   // Cargamos directo el estado "esperando confirmación" del webhook.
@@ -281,8 +291,17 @@ function Booking() {
 
   const isPaid = bookingDoc?.paymentStatus === 'paid' || bookingDoc?.status === 'confirmed'
   const isDeclined = bookingDoc?.paymentStatus === 'declined' || bookingDoc?.paymentStatus === 'voided'
-  const isWhatsAppFlow = bookingDoc?.paymentMethod === 'whatsapp'
+  // PAR-07: el método 'transfer_50' es el nuevo (Opción B). Mantenemos
+  // compat con 'whatsapp' (bookings pre-pivot que aún se persistían así)
+  // para no romper la pantalla de confirmación de reservas antiguas.
+  const isTransferFlow =
+    bookingDoc?.paymentMethod === 'transfer_50' ||
+    bookingDoc?.paymentMethod === 'whatsapp'
   const isBoldFlow = bookingDoc?.paymentMethod === 'bold' || (!!refFromUrl)
+  // PAR-07 (BTN-001 fix): "ya llegó el snapshot inicial al menos una vez".
+  // Se usa como dep del useEffect del mount Bold en lugar de bookingDoc
+  // directo para evitar que onSnapshot re-emita y dispare un re-mount.
+  const bookingDocReady = !!bookingDoc
 
   // Preselección de servicio desde la URL.
   //  - ?service=ID: enlace legacy (cards de Services.jsx).
@@ -338,11 +357,11 @@ function Booking() {
     [flow, selectedService, numPeople, additionals, pickedAdd],
   )
   const total = pricing.total
-
-  const amountPaid = useMemo(
-    () => (paymentType === 'partial' ? Math.round(total / 2) : total),
-    [paymentType, total],
-  )
+  // PAR-07: monto del anticipo en transferencia (siempre 50%). Persistido
+  // en cada booking aunque el método elegido sea Bold (facilita que el
+  // operador convierta a transfer_50 desde admin sin recalcular).
+  const amountDue50 = useMemo(() => Math.round(total / 2), [total])
+  const amountDueRemainder = total - amountDue50
 
   const canAdvance = useMemo(() => {
     switch (step) {
@@ -386,9 +405,14 @@ function Booking() {
     additionals: pricing.additionalsBreakdown,
     additionalsTotal: pricing.additionalsTotal,
     total: pricing.total,
-    paymentType,
-    amountPaid,
+    // PAR-07: split 50/50 siempre persistido. paymentStatus derivado del
+    // método (pending_bold vs pending_transfer). La Cloud Function
+    // generateBoldHash sigue leyendo `total` de Firestore — no halving
+    // server-side porque ya no existe paymentType='partial'.
     paymentMethod,
+    paymentStatus: paymentMethod === 'bold' ? 'pending_bold' : 'pending_transfer',
+    amountDue50,
+    amountDueRemainder,
     // PAR-06: prueba de aceptación T&C. El gate de canAdvance en step 3
     // garantiza que este punto sólo se alcanza con termsAccepted=true y
     // legal.termsVersion definido. serverTimestamp lo resuelve Firestore
@@ -429,65 +453,123 @@ function Booking() {
     setBoldFlow('preparing')
   }
 
-  // Cuando boldFlow pasa a 'preparing', el sub-pane "Completa tu pago"
-  // se renderiza y boldMountRef.current existe. Aquí llamamos al callable
-  // y montamos el botón Bold dentro de ese contenedor (no en document.body).
+  // PAR-07 · BTN-001 fix
+  // -------------------------------------------------------------------
+  // Cuando boldFlow pasa a 'preparing', el sub-pane "Completa tu pago" se
+  // renderiza y boldMountRef.current aparece. Aquí llamamos al callable y
+  // montamos el botón Bold dentro de ese contenedor.
   //
-  // IMPORTANTE: incluir `bookingDoc` en deps. En la primera transición
-  // boldFlow:'idle'→'preparing', `bookingDoc` aún está null (useDoc
-  // todavía cargando) y el guard de render muestra "Verificando…" en vez
-  // del sub-pane, así que el ref no existe todavía. Cuando llega el
-  // snapshot y bookingDoc se llena, este effect se re-ejecuta con el ref
-  // ya montado. La guarda interna `if (boldFlow !== 'preparing')` evita
-  // doble ejecución después de pasar a 'mounted'.
+  // Bug previo (BTN-001): el effect dependía de `bookingDoc` directo. Como
+  // useDoc usa onSnapshot, Firestore re-emite el doc varias veces (al
+  // resolverse el serverTimestamp local→server, al llegar updates del
+  // webhook, etc.). Cada re-emit cancelaba el mount en curso con el flag
+  // `cancelled`, y aunque el siguiente intento limpiaba scripts viejos,
+  // el primer `setBoldFlow('mounted')` ya no se aplicaba (cancelled=true)
+  // → la UI quedaba congelada en "Preparando botón de pago seguro…".
+  //
+  // Fix:
+  //   1) dep `bookingDocReady` (boolean) en lugar de `bookingDoc` — sólo
+  //      cambia false→true UNA VEZ cuando el snapshot inicial llega.
+  //   2) Ref `boldMountedRef` como guard de un solo disparo — si el effect
+  //      se re-ejecuta por cualquier motivo, no relanza el mount.
+  //   3) No hay flag `cancelled` — el mount se ejecuta una vez y commit
+  //      el estado 'mounted' incondicionalmente al resolver. Los retry y
+  //      cancel limpian explícitamente boldMountedRef antes de re-entrar.
   useEffect(() => {
-    if (boldFlow !== 'preparing' || !bookingId) return
+    if (boldFlow !== 'preparing' || !bookingId || !bookingDocReady) return
+    if (boldMountedRef.current) return
     const target = boldMountRef.current
     if (!target) return
-    let cancelled = false
+    boldMountedRef.current = true
     ;(async () => {
       try {
         await startBoldCheckout({
-          booking: { ...buildBookingPayload('bold'), id: bookingId, total: amountPaid },
+          booking: { id: bookingId },
           mountEl: target,
         })
-        if (!cancelled) setBoldFlow('mounted')
+        setBoldFlow('mounted')
       } catch (e) {
-        if (cancelled) return
         console.error(e)
+        boldMountedRef.current = false
         setBoldError(e?.message || 'No se pudo iniciar el pago online.')
         setBoldFlow('error')
       }
     })()
-    return () => { cancelled = true }
-    // buildBookingPayload depende de selectedService/sedeId/etc; el contrato
-    // de re-ejecución es: dispara cuando boldFlow, bookingId o bookingDoc
-    // cambien (este último es el que destraba el ref).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boldFlow, bookingId, bookingDoc])
+  }, [boldFlow, bookingId, bookingDocReady])
+
+  // Cleanup al desmontar el componente: si el usuario navega afuera mientras
+  // el SDK estaba cargando, quitamos cualquier script Bold que haya quedado
+  // colgando en el DOM (startBoldCheckout también limpia antes de mountar,
+  // pero esto evita acumulación si el usuario rebota varias veces).
+  useEffect(() => {
+    return () => {
+      document
+        .querySelectorAll('script[data-bold-button], script[src*="boldPaymentButton.js"]')
+        .forEach((n) => n.remove())
+      document.querySelectorAll('bold-payment-button, button#boldPaymentButton').forEach((n) => n.remove())
+    }
+  }, [])
 
   const retryBold = () => {
     setBoldError('')
+    boldMountedRef.current = false
     setBoldFlow('preparing')
   }
 
   const cancelBoldAndBack = () => {
     setBoldError('')
+    boldMountedRef.current = false
     setBoldFlow('idle')
     setBookingId(null)
     // limpiar el ref param de la URL si llegamos por redirect
     if (refFromUrl) navigate('/reservar/wizard', { replace: true })
   }
 
-  const handleWhatsApp = async () => {
-    const id = bookingId || (await submitBooking('whatsapp'))
+  // PAR-07 Opción B (fresh): crea booking pending_transfer y abre WhatsApp
+  // con el resumen + pedido de datos bancarios para pagar el 50%.
+  const handleTransfer = async () => {
+    setSubmitError('')
+    if (!settingsGeneral?.whatsapp) {
+      setSubmitError('WhatsApp no está configurado por el operador.')
+      return
+    }
+    const id = bookingId || (await submitBooking('transfer_50'))
     if (!id) return
-    const payload = buildBookingPayload('whatsapp')
-    const wa = buildWhatsAppPaymentMessage(
-      { ...payload, id, sede: SEDE_BY_ID[sedeId]?.name || sedeId, total: amountPaid },
-      settingsGeneral?.whatsapp || '',
+    const wa = buildTransferWhatsAppMessage(
+      {
+        id,
+        flow: flow || 'experience',
+        numPeople: pricing.numPeople,
+        sedeName: SEDE_BY_ID[sedeId]?.name || sedeId,
+        date,
+        time,
+        total: pricing.total,
+      },
+      settingsGeneral.whatsapp,
     )
-    window.open(wa, '_blank', 'noopener')
+    if (wa) window.open(wa, '_blank', 'noopener')
+  }
+
+  // PAR-07 fallback: si Bold falló, ofrecemos al cliente la opción de
+  // coordinar el 50% por transferencia con la reserva ya creada
+  // (pending_bold). NO actualizamos el doc — las rules no permiten update
+  // anónimo. El operador reconcilia el método cuando reciba el WhatsApp
+  // (cambia paymentMethod → transfer_50 en admin/reservas).
+  const handleTransferFromBoldFallback = () => {
+    if (!settingsGeneral?.whatsapp || !bookingId) return
+    const wa = buildTransferWhatsAppMessage(
+      {
+        id: bookingId,
+        flow: bookingDoc?.flow || flow || 'experience',
+        numPeople: bookingDoc?.numPeople || pricing.numPeople,
+        sedeName: bookingDoc?.sedeName || SEDE_BY_ID[sedeId]?.name || sedeId,
+        date: bookingDoc?.date || date,
+        time: bookingDoc?.time || time,
+        total: bookingDoc?.total || pricing.total,
+      },
+      settingsGeneral.whatsapp,
+    )
+    if (wa) window.open(wa, '_blank', 'noopener')
   }
 
   // ==========================================================
@@ -506,10 +588,14 @@ function Booking() {
     )
   }
 
-  // CASO 1 — WhatsApp: la reserva queda en 'pending' y el cliente coordina
-  // por chat. Se muestra "Reserva registrada" inmediatamente porque ese
-  // canal no requiere pago digital.
-  if (bookingId && bookingDoc && isWhatsAppFlow) {
+  // CASO 1 — Transferencia 50% (Opción B): la reserva queda en
+  // paymentStatus 'pending_transfer'. El cliente ya tiene WhatsApp abierto
+  // en otra tab coordinando el anticipo. Le mostramos confirmación con el
+  // ID + el split 50/50 explícito (anticipo ahora, saldo el día del vuelo).
+  // Compat: bookings legacy con paymentMethod='whatsapp' también caen acá.
+  if (bookingId && bookingDoc && isTransferFlow) {
+    const due50 = bookingDoc.amountDue50 ?? Math.round((bookingDoc.total || 0) / 2)
+    const dueRem = bookingDoc.amountDueRemainder ?? ((bookingDoc.total || 0) - due50)
     return (
       <section className="booking confirm">
         <div className="container confirm__inner">
@@ -517,13 +603,16 @@ function Booking() {
           <h1 className="confirm__title">¡Reserva registrada!</h1>
           <p className="confirm__sub">
             Tu número de reserva es <strong>{bookingId.slice(0, 8).toUpperCase()}</strong>.
-            Te confirmaremos por WhatsApp en menos de 24 horas.
+            Te abrimos WhatsApp con el resumen. Coordinamos el 50% por
+            transferencia y confirmamos los datos bancarios en el chat.
           </p>
           <div className="confirm__summary">
             <div><span>Servicio</span><strong>{bookingDoc.serviceName}</strong></div>
             <div><span>Sede</span><strong>{bookingDoc.sedeName}</strong></div>
             <div><span>Fecha</span><strong>{bookingDoc.date} · {bookingDoc.time}</strong></div>
             <div><span>Total reserva</span><strong>{formatCOP(bookingDoc.total)}</strong></div>
+            <div><span>Anticipo (50%)</span><strong>{formatCOP(due50)}</strong></div>
+            <div><span>Saldo el día del vuelo</span><strong>{formatCOP(dueRem)}</strong></div>
           </div>
           <div className="confirm__actions">
             <Link to="/" className="btn btn--primary">Volver al inicio</Link>
@@ -566,7 +655,8 @@ function Booking() {
   }
 
   // CASO 3 — Bold rechazado/anulado: el webhook reportó declined/voided.
-  // Damos opción de reintentar (genera nueva orden, reusa la misma reserva).
+  // PAR-07: además de reintentar, ofrecemos el fallback de transferencia
+  // 50% por WhatsApp (salida segura sin necesidad de Bold).
   if (bookingId && bookingDoc && isBoldFlow && isDeclined) {
     return (
       <section className="booking confirm">
@@ -575,11 +665,19 @@ function Booking() {
           <h1 className="confirm__title">Pago no completado</h1>
           <p className="confirm__sub">
             Bold reportó que tu pago fue {bookingDoc.paymentStatus === 'voided' ? 'anulado' : 'rechazado'}.
-            Puedes intentar de nuevo o pagar por WhatsApp.
+            Puedes intentar de nuevo, coordinar el 50% por WhatsApp, o cancelar.
           </p>
           <div className="confirm__actions">
             <button type="button" className="btn btn--primary" onClick={retryBold}>
               Reintentar pago con Bold
+            </button>
+            <button
+              type="button"
+              className="btn btn--outline pay-btn--wa"
+              onClick={handleTransferFromBoldFallback}
+              disabled={!settingsGeneral?.whatsapp}
+            >
+              Pagar 50% por WhatsApp
             </button>
             <button type="button" className="btn btn--outline" onClick={cancelBoldAndBack}>
               Volver
@@ -619,6 +717,16 @@ function Booking() {
               <div className="confirm__actions">
                 <button type="button" className="btn btn--primary" onClick={retryBold}>
                   Intentar de nuevo
+                </button>
+                {/* PAR-07: salida segura cuando Bold falla — coordina por
+                    WhatsApp el 50% por transferencia con el operador. */}
+                <button
+                  type="button"
+                  className="btn btn--outline pay-btn--wa"
+                  onClick={handleTransferFromBoldFallback}
+                  disabled={!settingsGeneral?.whatsapp}
+                >
+                  Pagar 50% por WhatsApp
                 </button>
                 <button type="button" className="btn btn--outline" onClick={cancelBoldAndBack}>
                   Cancelar
@@ -949,54 +1057,70 @@ function Booking() {
           {step === 4 && !bookingId && (
             <div className="step-pane">
               <h2 className="step-pane__title">Confirma y paga</h2>
-              <p className="step-pane__lead">Elige cuánto pagar ahora y el método.</p>
+              <p className="step-pane__lead">
+                Elegí cómo querés completar el pago de tu reserva.
+              </p>
 
-              <h3 className="step-pane__sub">¿Cuánto quieres pagar ahora?</h3>
-              <div className="pay-amount">
-                <button
-                  type="button"
-                  className={`pay-amount__opt ${paymentType === 'full' ? 'pay-amount__opt--on' : ''}`}
-                  onClick={() => setPaymentType('full')}
-                >
-                  <span className="pay-amount__label">Pago completo</span>
-                  <span className="pay-amount__value">{formatCOP(total)}</span>
-                  <small>Cubres toda la experiencia ahora.</small>
-                </button>
-                <button
-                  type="button"
-                  className={`pay-amount__opt ${paymentType === 'partial' ? 'pay-amount__opt--on' : ''}`}
-                  onClick={() => setPaymentType('partial')}
-                >
-                  <span className="pay-amount__label">Anticipo 50%</span>
-                  <span className="pay-amount__value">{formatCOP(Math.round(total / 2))}</span>
-                  <small>Saldo: {formatCOP(total - Math.round(total / 2))} el día del vuelo.</small>
-                </button>
-              </div>
+              {/* PAR-07: 2 opciones de pago claramente separadas (pivot v2).
+                  A — Bold 100% online. B — Transferencia 50% coordinada por
+                  WhatsApp con saldo el día del vuelo. boldActive vive en
+                  settings/general (lectura pública); settings/bold es admin-only
+                  por contener la secretKey. */}
+              <div className="pay-options-v2">
+                <div className="pay-option pay-option--bold">
+                  <h3 className="pay-option__title">💳 Pago completo por Bold</h3>
+                  <div className="pay-option__amount">
+                    <span className="pay-option__label">Total</span>
+                    <strong className="pay-option__value">{formatCOP(total)}</strong>
+                  </div>
+                  <p className="pay-option__desc">
+                    Pagás el 100% ahora con tarjeta, PSE u otros métodos
+                    digitales. La reserva queda confirmada al instante cuando
+                    Bold confirme el pago.
+                  </p>
+                  {settingsGeneral?.boldActive ? (
+                    <button
+                      type="button"
+                      className="btn btn--primary pay-option__cta"
+                      onClick={handleBold}
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Procesando…' : 'Pagar con Bold'}
+                    </button>
+                  ) : (
+                    <p className="pay-option__hint">
+                      Bold no está habilitado por el momento.
+                    </p>
+                  )}
+                </div>
 
-              <h3 className="step-pane__sub">Método de pago</h3>
-              <div className="pay-options">
-                {/* boldActive vive en settings/general (lectura pública).
-                    No leemos settings/bold directamente porque esa colección
-                    es admin-only por contener la secretKey. Un visitante sin
-                    sesión no veía este botón antes — esto lo arregla. */}
-                {settingsGeneral?.boldActive && (
+                <div className="pay-option pay-option--transfer">
+                  <h3 className="pay-option__title">
+                    💬 50% por transferencia (WhatsApp)
+                  </h3>
+                  <div className="pay-option__amount">
+                    <span className="pay-option__label">Anticipo</span>
+                    <strong className="pay-option__value">{formatCOP(amountDue50)}</strong>
+                  </div>
+                  <p className="pay-option__desc">
+                    Pagás el 50% ahora por transferencia. Saldo restante (
+                    {formatCOP(amountDueRemainder)}) el día del vuelo.
+                    Te abrimos WhatsApp para coordinar los datos bancarios.
+                  </p>
                   <button
                     type="button"
-                    className="btn btn--primary pay-btn"
-                    onClick={handleBold}
-                    disabled={submitting}
+                    className="btn btn--outline pay-option__cta pay-option__cta--wa"
+                    onClick={handleTransfer}
+                    disabled={submitting || !settingsGeneral?.whatsapp}
                   >
-                    {submitting ? 'Procesando…' : `Pagar ${formatCOP(amountPaid)} online (Bold)`}
+                    {submitting ? 'Procesando…' : 'Coordinar por WhatsApp'}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--outline pay-btn pay-btn--wa"
-                  onClick={handleWhatsApp}
-                  disabled={submitting}
-                >
-                  Pagar {formatCOP(amountPaid)} por WhatsApp
-                </button>
+                  {!settingsGeneral?.whatsapp && (
+                    <p className="pay-option__hint">
+                      WhatsApp no está configurado por el operador.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {submitError && (

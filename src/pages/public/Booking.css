@@ -347,52 +347,93 @@
   line-height: 1;
 }
 
-/* Payment amount selector */
-.pay-amount {
+/* PAR-07: 2 opciones de pago (Bold 100% / Transferencia 50% WhatsApp).
+   Mobile stack vertical; desktop ≥768px side-by-side equal cols. */
+.pay-options-v2 {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 20px;
 }
-.pay-amount__opt {
+.pay-option {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 22px 20px;
   background: var(--color-surface-2);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s var(--ease-out),
+    box-shadow 0.2s ease;
 }
-.pay-amount__opt:hover {
-  border-color: #fed7aa;
-}
-.pay-amount__opt--on {
+.pay-option--bold {
   border-color: var(--color-accent);
-  background: #fff;
 }
-.pay-amount__label {
-  font-weight: 700;
-  color: var(--color-bg);
-  font-size: 15px;
-  letter-spacing: 0.3px;
+.pay-option--transfer {
+  border-color: var(--color-whatsapp);
 }
-.pay-amount__value {
+.pay-option:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+.pay-option__title {
   font-family: var(--font-heading);
-  font-size: 28px;
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  margin: 0;
+}
+.pay-option__amount {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.pay-option__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--color-text-soft);
+  font-weight: 700;
+}
+.pay-option__value {
+  font-family: var(--font-heading);
+  font-size: 32px;
   color: var(--color-accent);
   letter-spacing: 0.5px;
+  line-height: 1;
 }
-.pay-amount__opt small {
+.pay-option--transfer .pay-option__value {
+  color: var(--color-whatsapp);
+}
+.pay-option__desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--color-text-soft);
-  font-size: 13px;
 }
-@media (min-width: 600px) {
-  .pay-amount {
+.pay-option__cta {
+  margin-top: auto;
+}
+.pay-option__cta--wa {
+  border-color: var(--color-whatsapp);
+  color: var(--color-whatsapp);
+}
+.pay-option__cta--wa:hover:not(:disabled) {
+  background: var(--color-whatsapp);
+  color: #fff;
+}
+.pay-option__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  font-style: italic;
+}
+
+@media (min-width: 768px) {
+  .pay-options-v2 {
     grid-template-columns: 1fr 1fr;
+    align-items: stretch;
   }
 }
 
@@ -635,23 +676,14 @@
   margin-left: 4px;
 }
 
-/* Pay */
-.pay-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.pay-btn {
-  width: 100%;
-  padding: 18px;
-  font-size: 16px;
-}
+/* Pay — sólo modifier WhatsApp para el botón de fallback Bold→Transfer
+   (CASO 3 declined + CASO 4 error). El selector base + layout de pago vive
+   en .pay-options-v2 desde PAR-07. */
 .pay-btn--wa {
   border-color: var(--color-whatsapp);
   color: var(--color-whatsapp);
 }
-.pay-btn--wa:hover {
+.pay-btn--wa:hover:not(:disabled) {
   background: var(--color-whatsapp);
   color: #fff;
 }
@@ -814,9 +846,6 @@
   }
   .time-picker {
     grid-template-columns: repeat(6, 1fr);
-  }
-  .pay-options {
-    flex-direction: row;
   }
   .confirm__actions {
     flex-direction: row;

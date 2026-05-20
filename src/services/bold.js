@@ -113,27 +113,39 @@ export async function startBoldCheckout({ booking, mountEl }) {
 }
 
 /**
- * Construye un enlace WhatsApp con el resumen de la reserva para el flujo
- * alternativo de pago manual. Lo invoca Booking.jsx; lo dejamos aquí
- * porque la lógica de mensaje coexiste con el resto de Bold.
+ * Construye el deep link de WhatsApp para la Opción B del wizard (PAR-07):
+ * el cliente paga el 50% por transferencia y coordina los datos bancarios
+ * con el operador. Formato del mensaje fijado por el Briefing.
+ *
+ * Inputs (todos requeridos salvo `whatsappNumber` que el caller valida):
+ *   booking.id        — ID de la reserva ya persistida
+ *   booking.flow      — 'experience' | 'livegroup' (mapea a label visible)
+ *   booking.numPeople — N (post-clamp)
+ *   booking.sedeName  — nombre amable de la sede
+ *   booking.date      — 'YYYY-MM-DD'
+ *   booking.time      — 'HH:MM'
+ *   booking.total     — total final ya con descuento Live Group aplicado
+ *
+ * Devuelve '' si el número de WhatsApp no está configurado.
  */
-export function buildWhatsAppPaymentMessage(booking, whatsappNumber) {
+export function buildTransferWhatsAppMessage(booking, whatsappNumber) {
+  const phone = String(whatsappNumber || '').replace(/\D/g, '')
+  if (!phone) return ''
+  const flowLabel =
+    booking.flow === 'livegroup' ? 'Experiencia Live Group' : 'Vuelo Experience'
+  const total = Number(booking.total) || 0
+  const half = Math.round(total / 2)
+  const fmt = (n) => `$${(n || 0).toLocaleString('es-CO')}`
   const lines = [
-    'Hola Fly Parapente Tour, quiero confirmar mi reserva:',
-    '',
-    `🪂 Servicio: ${booking.serviceName}`,
-    `📍 Sede: ${booking.sede}`,
-    `📅 Fecha: ${booking.date} · ${booking.time}`,
-    `👤 Nombre: ${booking.clientName}`,
-    `📧 Email: ${booking.clientEmail}`,
-    `📱 Teléfono: ${booking.clientPhone}`,
+    'Hola, hice una reserva en Fly Parapente Tour:',
+    `• ID: ${booking.id}`,
+    `• Servicio: ${flowLabel}`,
+    `• Personas: ${booking.numPeople ?? 1}`,
+    `• Sede: ${booking.sedeName || ''}`,
+    `• Fecha: ${booking.date} · ${booking.time}`,
+    `• Total: ${fmt(total)}`,
+    `• Quiero pagar el 50% (${fmt(half)}) por transferencia.`,
+    '¿Me confirman datos bancarios?',
   ]
-  if (booking.additionals?.length) {
-    lines.push('', 'Adicionales:')
-    booking.additionals.forEach((a) => lines.push(`  • ${a.name}`))
-  }
-  lines.push('', `💵 Total: $${(booking.total || 0).toLocaleString('es-CO')} COP`)
-  if (booking.id) lines.push(`📝 Ref: ${booking.id}`)
-  const phone = (whatsappNumber || '').replace(/\D/g, '')
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join('\n'))}`
 }
