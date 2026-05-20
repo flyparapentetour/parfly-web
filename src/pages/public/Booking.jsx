@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, where } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
 import { db } from '../../firebase/config'
@@ -147,13 +147,17 @@ function TimePicker({ sedeId, date, schedule, scheduleLoading, value, onChange }
   // de `settings/schedule` (que es donde estaba el bug del parpadeo en
   // mobile: snapshot re-emit → effect re-fetch → red hipo durante
   // scroll → catch reseteaba slots a []).
+  //
+  // PAR-04: ya no consultamos `bookings` para contar cupos usados — el
+  // pivot v2 elimina el badge visible "X cupos" y, con él, la query que
+  // de todas formas fallaba silently para visitantes anónimos (rules
+  // exigen isSignedIn para list). El bloqueo de día/sede sigue activo a
+  // nivel `resolveSlots` (devuelve [] → empty state).
   const [daySnap, setDaySnap] = useState(null) // { blocked, override }
-  const [usage, setUsage] = useState({})
 
   useEffect(() => {
     if (!sedeId || !date) {
       setDaySnap(null)
-      setUsage({})
       return
     }
     let alive = true
@@ -168,25 +172,10 @@ function TimePicker({ sedeId, date, schedule, scheduleLoading, value, onChange }
           blocked: blockedSnap.exists() && blockedSnap.data().blocked === true,
           override: overrideSnap.exists() ? overrideSnap.data().slots : null,
         })
-
-        const q = query(
-          collection(db, 'bookings'),
-          where('sede', '==', sedeId),
-          where('date', '==', date),
-          where('status', '==', 'confirmed'),
-        )
-        const bookings = await getDocs(q)
-        if (!alive) return
-        const used = {}
-        bookings.forEach((b) => {
-          const t = b.data().time
-          used[t] = (used[t] || 0) + 1
-        })
-        setUsage(used)
       } catch (e) {
-        // OJO: no reseteamos `daySnap` ni `usage` si la red tiene un
-        // hipo en mobile durante el scroll. Preservar el último estado
-        // bueno evita el parpadeo de horarios.
+        // OJO: no reseteamos `daySnap` si la red tiene un hipo en mobile
+        // durante el scroll. Preservar el último estado bueno evita el
+        // parpadeo de horarios.
         console.error('slots fetch', e)
       }
     })()
@@ -227,24 +216,16 @@ function TimePicker({ sedeId, date, schedule, scheduleLoading, value, onChange }
   }
   return (
     <div className="time-picker">
-      {slots.map((s) => {
-        const used = usage[s.time] || 0
-        const free = Math.max(0, s.cupos - used)
-        const full = free === 0
-        return (
-          <button
-            type="button"
-            key={s.time}
-            className={`time-pill ${value === s.time ? 'time-pill--selected' : ''} ${full ? 'time-pill--full' : ''}`}
-            onClick={() => onChange(s.time)}
-            disabled={full}
-            title={full ? 'Sin cupos' : `${free} cupos disponibles`}
-          >
-            <span>{s.time}</span>
-            <small>{full ? 'Sin cupos' : `${free} cupo${free === 1 ? '' : 's'}`}</small>
-          </button>
-        )
-      })}
+      {slots.map((s) => (
+        <button
+          type="button"
+          key={s.time}
+          className={`time-pill ${value === s.time ? 'time-pill--selected' : ''}`}
+          onClick={() => onChange(s.time)}
+        >
+          <span>{s.time}</span>
+        </button>
+      ))}
     </div>
   )
 }
