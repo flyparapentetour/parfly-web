@@ -12,17 +12,15 @@ service cloud.firestore {
     match /testimonials/{id}       { allow read; allow write: if isSignedIn(); }
     match /gallery/{id}            { allow read; allow write: if isSignedIn(); }
 
-    // Settings: generic is public (whatsapp, socials); Bold MUST be admin-only
-    // because it stores the secretKey.
-    match /settings/general        { allow read; allow write: if isSignedIn(); }
-    match /settings/legal          { allow read; allow write: if isSignedIn(); }
-    match /settings/schedule       { allow read; allow write: if isSignedIn(); }
-    match /settings/stats          { allow read; allow write: if isSignedIn(); }
-    match /settings/faq            { allow read; allow write: if isSignedIn(); }
-    match /settings/homeIntros     { allow read; allow write: if isSignedIn(); }
-    match /settings/included       { allow read; allow write: if isSignedIn(); }
-    match /settings/classes        { allow read; allow write: if isSignedIn(); }
-    match /settings/sedes          { allow read; allow write: if isSignedIn(); }
+    // Settings: por defecto público para lectura y admin para escritura.
+    // Excepción: `bold` guarda secretKey — la regla específica de abajo lo
+    // restringe a signed-in también en lectura. Firestore evalúa todas las
+    // reglas que matchean y aplica OR, por eso el wildcard excluye 'bold' en
+    // lectura para no exponer el secret.
+    match /settings/{docId} {
+      allow read: if docId != 'bold';
+      allow write: if isSignedIn();
+    }
     match /settings/bold           { allow read, write: if isSignedIn(); }
 
     // Availability tree: public read, admin write.
