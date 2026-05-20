@@ -294,10 +294,9 @@
 }
 .time-pill {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 10px 6px;
+  justify-content: center;
+  padding: 14px 6px;
   background: var(--color-surface-2);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
@@ -305,24 +304,10 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
-.time-pill small {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--color-text-soft);
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
 .time-pill--selected {
   border-color: var(--color-accent);
   background: #fff;
   color: var(--color-accent);
-}
-.time-pill--selected small {
-  color: var(--color-accent);
-}
-.time-pill--full {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 /* Calendar + time side-by-side on desktop */
@@ -362,52 +347,93 @@
   line-height: 1;
 }
 
-/* Payment amount selector */
-.pay-amount {
+/* PAR-07: 2 opciones de pago (Bold 100% / Transferencia 50% WhatsApp).
+   Mobile stack vertical; desktop ≥768px side-by-side equal cols. */
+.pay-options-v2 {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 20px;
 }
-.pay-amount__opt {
+.pay-option {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 22px 20px;
   background: var(--color-surface-2);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s var(--ease-out),
+    box-shadow 0.2s ease;
 }
-.pay-amount__opt:hover {
-  border-color: #fed7aa;
-}
-.pay-amount__opt--on {
+.pay-option--bold {
   border-color: var(--color-accent);
-  background: #fff;
 }
-.pay-amount__label {
-  font-weight: 700;
-  color: var(--color-bg);
-  font-size: 15px;
-  letter-spacing: 0.3px;
+.pay-option--transfer {
+  border-color: var(--color-whatsapp);
 }
-.pay-amount__value {
+.pay-option:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+.pay-option__title {
   font-family: var(--font-heading);
-  font-size: 28px;
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  margin: 0;
+}
+.pay-option__amount {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.pay-option__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--color-text-soft);
+  font-weight: 700;
+}
+.pay-option__value {
+  font-family: var(--font-heading);
+  font-size: 32px;
   color: var(--color-accent);
   letter-spacing: 0.5px;
+  line-height: 1;
 }
-.pay-amount__opt small {
+.pay-option--transfer .pay-option__value {
+  color: var(--color-whatsapp);
+}
+.pay-option__desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--color-text-soft);
-  font-size: 13px;
 }
-@media (min-width: 600px) {
-  .pay-amount {
+.pay-option__cta {
+  margin-top: auto;
+}
+.pay-option__cta--wa {
+  border-color: var(--color-whatsapp);
+  color: var(--color-whatsapp);
+}
+.pay-option__cta--wa:hover:not(:disabled) {
+  background: var(--color-whatsapp);
+  color: #fff;
+}
+.pay-option__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-soft);
+  font-style: italic;
+}
+
+@media (min-width: 768px) {
+  .pay-options-v2 {
     grid-template-columns: 1fr 1fr;
+    align-items: stretch;
   }
 }
 
@@ -463,11 +489,23 @@
   font-size: 13px;
   color: var(--color-text-soft);
 }
+.addon__price-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
 .addon__price {
   font-family: var(--font-heading);
   font-size: 18px;
   color: var(--color-accent);
-  white-space: nowrap;
+  line-height: 1;
+}
+.addon__meta {
+  font-size: 11px;
+  color: var(--color-text-soft);
+  letter-spacing: 0.2px;
 }
 .addon--on {
   border-color: var(--color-accent);
@@ -509,6 +547,40 @@
   background: #fff;
 }
 
+/* T&C check (PAR-06) */
+.terms-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 22px;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  user-select: none;
+}
+.terms-check input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.terms-check__link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.terms-check__link:hover,
+.terms-check__link:focus-visible {
+  color: var(--color-accent-dark);
+  outline: none;
+}
+
 /* Summary */
 .summary {
   background: var(--color-surface-2);
@@ -533,6 +605,19 @@
 .summary__row span {
   color: var(--color-text-soft);
 }
+.summary__row--discount {
+  color: var(--color-whatsapp);
+}
+.summary__row--discount strong {
+  color: var(--color-whatsapp);
+  font-weight: 700;
+}
+.summary__row--subtotal {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 6px;
+  padding-top: 10px;
+  font-weight: 600;
+}
 .summary__row--total {
   border-top: 1px solid #e5e7eb;
   margin-top: 8px;
@@ -545,23 +630,60 @@
   font-size: 22px;
 }
 
-/* Pay */
-.pay-options {
+/* Personas stepper (PAR-03) */
+.personas-stepper {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
-.pay-btn {
-  width: 100%;
-  padding: 18px;
-  font-size: 16px;
+.personas-stepper__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  background: #fff;
+  color: var(--color-accent);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
+.personas-stepper__btn:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.personas-stepper__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.personas-stepper__value {
+  font-family: var(--font-heading);
+  font-size: 32px;
+  color: var(--color-bg);
+  min-width: 48px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+.personas-stepper__hint {
+  color: var(--color-text-soft);
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+/* Pay — sólo modifier WhatsApp para el botón de fallback Bold→Transfer
+   (CASO 3 declined + CASO 4 error). El selector base + layout de pago vive
+   en .pay-options-v2 desde PAR-07. */
 .pay-btn--wa {
   border-color: var(--color-whatsapp);
   color: var(--color-whatsapp);
 }
-.pay-btn--wa:hover {
+.pay-btn--wa:hover:not(:disabled) {
   background: var(--color-whatsapp);
   color: #fff;
 }
@@ -724,9 +846,6 @@
   }
   .time-picker {
     grid-template-columns: repeat(6, 1fr);
-  }
-  .pay-options {
-    flex-direction: row;
   }
   .confirm__actions {
     flex-direction: row;

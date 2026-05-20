@@ -9,6 +9,7 @@ import Home from './pages/public/Home'
 import './App.css'
 
 // Páginas secundarias (lazy): el visitante que solo ve la home no las descarga.
+const ServicePicker = lazy(() => import('./components/booking/ServicePicker'))
 const Booking = lazy(() => import('./pages/public/Booking'))
 const Additionals = lazy(() => import('./pages/public/Additionals'))
 const ClassesPage = lazy(() => import('./pages/public/ClassesPage'))
@@ -52,7 +53,8 @@ function App() {
             <Suspense fallback={<PageFallback />}>
               <Routes>
                 <Route path="/" element={<Home />} />
-                <Route path="/reservar" element={<Booking />} />
+                <Route path="/reservar" element={<ServicePicker />} />
+                <Route path="/reservar/wizard" element={<Booking />} />
                 <Route path="/adicionales" element={<Additionals />} />
                 <Route path="/clases" element={<ClassesPage />} />
                 <Route path="/sede/:ciudad" element={<SedePage />} />
