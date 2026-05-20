@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, serverTimestamp, where } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useCollection'
 import { useDoc } from '../../hooks/useDoc'
 import { db } from '../../firebase/config'
@@ -13,6 +13,7 @@ import {
   formatCOP,
 } from '../../constants/sedes'
 import { computePricing, clampPeople, flowLimits } from '../../lib/pricing'
+import TermsModal from '../../components/booking/TermsModal'
 import './Booking.css'
 
 const STEP_LABELS = ['Experiencia', 'Sede y fecha', 'Adicionales', 'Tus datos', 'Pago']
@@ -245,6 +246,11 @@ function Booking() {
   const [time, setTime] = useState('')
   const [pickedAdd, setPickedAdd] = useState({})
   const [client, setClient] = useState({ name: '', email: '', phone: '' })
+  // PAR-06: T&C aceptación. termsAccepted se mantiene durante toda la
+  // sesión del wizard (no se resetea al navegar entre steps). El modal
+  // sólo controla visibilidad del texto.
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
   const [paymentType, setPaymentType] = useState('full') // 'full' | 'partial'
   const [submitting, setSubmitting] = useState(false)
   // Si Bold nos redirige a /reservar?ref=<orderId>, ese orderId es nuestro bookingId.
@@ -260,6 +266,9 @@ function Booking() {
   const { data: services } = useCollection('services', [where('active', '==', true)])
   const { data: additionals } = useCollection('additionals', [where('active', '==', true)])
   const { data: settingsGeneral } = useDoc('settings/general')
+  // PAR-06: T&C texto + versión. termsVersion se persiste con cada booking
+  // junto a termsAcceptedAt para evidencia en caso de disputa.
+  const { data: legal } = useDoc('settings/legal')
   // Nota: NO leemos settings/bold aquí. Esa colección es admin-only
   // (contiene secretKey). El flag público está en settings/general.boldActive.
   const { data: schedule, loading: scheduleLoading } = useDoc('settings/schedule')
@@ -347,12 +356,14 @@ function Booking() {
         return (
           client.name.trim().length > 2 &&
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email) &&
-          client.phone.replace(/\D/g, '').length >= 7
+          client.phone.replace(/\D/g, '').length >= 7 &&
+          termsAccepted &&
+          !!legal?.termsVersion
         )
       default:
         return true
     }
-  }, [step, selectedService, sedeId, date, time, client])
+  }, [step, selectedService, sedeId, date, time, client, termsAccepted, legal])
 
   const buildBookingPayload = (paymentMethod) => ({
     serviceId: selectedService.id,
@@ -378,6 +389,12 @@ function Booking() {
     paymentType,
     amountPaid,
     paymentMethod,
+    // PAR-06: prueba de aceptación T&C. El gate de canAdvance en step 3
+    // garantiza que este punto sólo se alcanza con termsAccepted=true y
+    // legal.termsVersion definido. serverTimestamp lo resuelve Firestore
+    // al persistir, no la máquina del cliente.
+    termsAcceptedAt: serverTimestamp(),
+    termsVersion: legal?.termsVersion || 'unknown',
   })
 
   const submitBooking = async (paymentMethod) => {
@@ -868,6 +885,28 @@ function Booking() {
                 </label>
               </div>
 
+              {/* PAR-06: T&C check + link inline al modal. El botón Continuar
+                  queda disabled (canAdvance) hasta que el checkbox esté marcado
+                  y settings/legal.termsVersion haya cargado. */}
+              <label className="terms-check">
+                <input
+                  type="checkbox"
+                  required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                />
+                <span>
+                  Acepto los{' '}
+                  <button
+                    type="button"
+                    className="terms-check__link"
+                    onClick={() => setTermsModalOpen(true)}
+                  >
+                    términos y condiciones
+                  </button>
+                </span>
+              </label>
+
               <div className="summary">
                 <h3>Resumen</h3>
                 <div className="summary__row"><span>Servicio</span><strong>{selectedService?.name}</strong></div>
@@ -986,11 +1025,19 @@ function Booking() {
               disabled={!canAdvance}
               onClick={() => setStep((s) => s + 1)}
             >
-              Continuar →
+              {step === 3 ? 'Continuar al pago →' : 'Continuar →'}
             </button>
           )}
         </div>
       </div>
+
+      {termsModalOpen && (
+        <TermsModal
+          terms={legal?.terms}
+          termsVersion={legal?.termsVersion}
+          onClose={() => setTermsModalOpen(false)}
+        />
+      )}
     </section>
   )
 }
