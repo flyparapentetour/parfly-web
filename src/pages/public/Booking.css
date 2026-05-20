@@ -463,6 +463,10 @@
   font-size: 13px;
   color: var(--color-text-soft);
 }
+.addon__rate {
+  color: var(--color-accent) !important;
+  font-weight: 600;
+}
 .addon__price {
   font-family: var(--font-heading);
   font-size: 18px;
@@ -533,6 +537,19 @@
 .summary__row span {
   color: var(--color-text-soft);
 }
+.summary__row--discount {
+  color: var(--color-whatsapp);
+}
+.summary__row--discount strong {
+  color: var(--color-whatsapp);
+  font-weight: 700;
+}
+.summary__row--subtotal {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 6px;
+  padding-top: 10px;
+  font-weight: 600;
+}
 .summary__row--total {
   border-top: 1px solid #e5e7eb;
   margin-top: 8px;
@@ -543,6 +560,52 @@
   color: var(--color-accent);
   font-family: var(--font-heading);
   font-size: 22px;
+}
+
+/* Personas stepper (PAR-03) */
+.personas-stepper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.personas-stepper__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  background: #fff;
+  color: var(--color-accent);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.personas-stepper__btn:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.personas-stepper__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.personas-stepper__value {
+  font-family: var(--font-heading);
+  font-size: 32px;
+  color: var(--color-bg);
+  min-width: 48px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+.personas-stepper__hint {
+  color: var(--color-text-soft);
+  font-size: 13px;
+  margin-left: 4px;
 }
 
 /* Pay */

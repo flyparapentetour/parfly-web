@@ -12,6 +12,7 @@ import {
   SEDE_BY_ID,
   formatCOP,
 } from '../../constants/sedes'
+import { computePricing, clampPeople, flowLimits } from '../../lib/pricing'
 import './Booking.css'
 
 const STEP_LABELS = ['Experiencia', 'Sede y fecha', 'Adicionales', 'Tus datos', 'Pago']
@@ -301,6 +302,19 @@ function Booking() {
   //    `?flow=livegroup` directamente.
   const initialServiceId = searchParams.get('service') || ''
   const flow = searchParams.get('flow') || ''
+  // numPeople: default flow-aware (1 para experience, 8 para livegroup).
+  // Si la URL cambia de flow durante la sesión (navegación back al picker
+  // y elegir el otro flow), re-clampear en render — patrón "ajustar state
+  // cuando un input externo cambia" (React docs) en vez de useEffect, así
+  // evitamos el render extra y la warning de set-state-in-effect.
+  const [numPeople, setNumPeople] = useState(() =>
+    clampPeople(flow, flow === 'livegroup' ? 8 : 1),
+  )
+  const [prevFlow, setPrevFlow] = useState(flow)
+  if (flow !== prevFlow) {
+    setPrevFlow(flow)
+    setNumPeople((n) => clampPeople(flow, n))
+  }
   useEffect(() => {
     if (selectedService || services.length === 0) return
     const targetId =
@@ -319,14 +333,21 @@ function Booking() {
     [schedule, sedeId],
   )
 
-  const total = useMemo(() => {
-    const base = selectedService?.price || 0
-    const extras = (additionals || []).reduce(
-      (acc, a) => acc + (pickedAdd[a.id] ? a.price : 0),
-      0,
-    )
-    return base + extras
-  }, [selectedService, pickedAdd, additionals])
+  // Pricing dual (PAR-03). `pricing` es el desglose completo: respeta
+  // billingMode de cada adicional (per_person × N · per_booking 1×) y
+  // aplica 30% off al subtotal de VUELOS sólo si flow==='livegroup'.
+  const pricing = useMemo(
+    () =>
+      computePricing({
+        flow,
+        unitPrice: selectedService?.price || 0,
+        numPeople,
+        additionals: additionals || [],
+        picked: pickedAdd,
+      }),
+    [flow, selectedService, numPeople, additionals, pickedAdd],
+  )
+  const total = pricing.total
 
   const amountPaid = useMemo(
     () => (paymentType === 'partial' ? Math.round(total / 2) : total),
@@ -352,14 +373,6 @@ function Booking() {
     }
   }, [step, selectedService, sedeId, date, time, client])
 
-  const pickedAdditionalsList = useMemo(
-    () =>
-      (additionals || [])
-        .filter((a) => pickedAdd[a.id])
-        .map((a) => ({ id: a.id, name: a.name, price: a.price })),
-    [pickedAdd, additionals],
-  )
-
   const buildBookingPayload = (paymentMethod) => ({
     serviceId: selectedService.id,
     serviceName: selectedService.name,
@@ -370,8 +383,17 @@ function Booking() {
     clientName: client.name.trim(),
     clientEmail: client.email.trim(),
     clientPhone: client.phone.trim(),
-    additionals: pickedAdditionalsList,
-    total,
+    // PAR-03: desglose completo del Pivot v2.
+    flow: flow || 'experience',
+    numPeople: pricing.numPeople,
+    flightUnitPrice: selectedService?.price || 0,
+    flightSubtotal: pricing.flightSubtotal,
+    discountRate: pricing.discountRate,
+    discountAmount: pricing.discountAmount,
+    flightSubtotalFinal: pricing.flightSubtotalFinal,
+    additionals: pricing.additionalsBreakdown,
+    additionalsTotal: pricing.additionalsTotal,
+    total: pricing.total,
     paymentType,
     amountPaid,
     paymentMethod,
@@ -752,13 +774,51 @@ function Booking() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 2 && (() => {
+            const limits = flowLimits(flow)
+            return (
             <div className="step-pane">
-              <h2 className="step-pane__title">Adicionales</h2>
-              <p className="step-pane__lead">Personaliza tu experiencia. (Opcional)</p>
+              <h2 className="step-pane__title">Personas y adicionales</h2>
+              <p className="step-pane__lead">
+                {flow === 'livegroup'
+                  ? `Live Group: mínimo ${limits.min}, máximo ${limits.max} personas. 30% off al subtotal de vuelos.`
+                  : `Vuelo individual o pequeño grupo: hasta ${limits.max} personas.`}
+              </p>
+
+              <h3 className="step-pane__sub">¿Cuántas personas vuelan?</h3>
+              <div className="personas-stepper" role="group" aria-label="Cantidad de personas">
+                <button
+                  type="button"
+                  className="personas-stepper__btn"
+                  onClick={() => setNumPeople((n) => clampPeople(flow, n - 1))}
+                  disabled={numPeople <= limits.min}
+                  aria-label="Una persona menos"
+                >
+                  −
+                </button>
+                <span className="personas-stepper__value" aria-live="polite">{numPeople}</span>
+                <button
+                  type="button"
+                  className="personas-stepper__btn"
+                  onClick={() => setNumPeople((n) => clampPeople(flow, n + 1))}
+                  disabled={numPeople >= limits.max}
+                  aria-label="Una persona más"
+                >
+                  +
+                </button>
+                <small className="personas-stepper__hint">
+                  Mín {limits.min} · Máx {limits.max}
+                </small>
+              </div>
+
+              <h3 className="step-pane__sub">Adicionales (opcional)</h3>
               <div className="addons">
                 {(additionals || []).map((a) => {
                   const on = !!pickedAdd[a.id]
+                  // per_person muestra el precio multiplicado por personas para que
+                  // el usuario vea el cargo real antes de seleccionar.
+                  const qty = a.billingMode === 'per_person' ? numPeople : 1
+                  const lineTotal = (a.price || 0) * qty
                   return (
                     <button
                       type="button"
@@ -770,14 +830,20 @@ function Booking() {
                       <div className="addon__body">
                         <strong>{a.name}</strong>
                         <small>{a.description}</small>
+                        {a.billingMode === 'per_person' && (
+                          <small className="addon__rate">
+                            {formatCOP(a.price)} × {numPeople} pers.
+                          </small>
+                        )}
                       </div>
-                      <span className="addon__price">{formatCOP(a.price)}</span>
+                      <span className="addon__price">{formatCOP(lineTotal)}</span>
                     </button>
                   )
                 })}
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {step === 3 && (
             <div className="step-pane">
@@ -818,11 +884,33 @@ function Booking() {
                 <div className="summary__row"><span>Servicio</span><strong>{selectedService?.name}</strong></div>
                 <div className="summary__row"><span>Sede</span><strong>{SEDE_BY_ID[sedeId]?.name}</strong></div>
                 <div className="summary__row"><span>Fecha</span><strong>{date} · {time}</strong></div>
-                {pickedAdditionalsList.map((a) => (
+                <div className="summary__row">
+                  <span>
+                    Vuelos: {pricing.numPeople} × {formatCOP(selectedService?.price || 0)}
+                  </span>
+                  <strong>{formatCOP(pricing.flightSubtotal)}</strong>
+                </div>
+                {pricing.discountAmount > 0 && (
+                  <div className="summary__row summary__row--discount">
+                    <span>Descuento Live Group (30%)</span>
+                    <strong>−{formatCOP(pricing.discountAmount)}</strong>
+                  </div>
+                )}
+                {pricing.additionalsBreakdown.map((a) => (
                   <div key={a.id} className="summary__row">
-                    <span>+ {a.name}</span><strong>{formatCOP(a.price)}</strong>
+                    <span>
+                      + {a.name}
+                      {a.billingMode === 'per_person' && ` (× ${a.quantity})`}
+                    </span>
+                    <strong>{formatCOP(a.lineTotal)}</strong>
                   </div>
                 ))}
+                {pricing.additionalsBreakdown.length > 0 && (
+                  <div className="summary__row summary__row--subtotal">
+                    <span>Subtotal adicionales</span>
+                    <strong>{formatCOP(pricing.additionalsTotal)}</strong>
+                  </div>
+                )}
                 <div className="summary__row summary__row--total">
                   <span>Total</span><strong>{formatCOP(total)}</strong>
                 </div>
